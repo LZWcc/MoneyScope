@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import calendar
 from datetime import datetime
 from pathlib import Path
 from typing import TextIO
@@ -117,21 +118,36 @@ def get_category_expense_summary(
     )
 
 
-def get_monthly_trend(db_path: Path | str = DATABASE_PATH) -> pd.DataFrame:
-    """返回跨月份的收入、支出和结余趋势，按月份升序。"""
-    rows = list_transactions(db_path=db_path)
+def get_daily_trend(month: str, db_path: Path | str = DATABASE_PATH) -> pd.DataFrame:
+    """返回指定月份每一天的收入、支出和结余。
+
+    覆盖该月 1 号到月末的全部自然日（28/29/30/31 天），没有交易的
+    日期补 0，便于趋势图横轴固定展示整月范围。
+    """
+    month = parse_month(month)
+    year, mon = int(month[:4]), int(month[5:7])
+    last_day = calendar.monthrange(year, mon)[1]
+    all_dates = [f"{month}-{day:02d}" for day in range(1, last_day + 1)]
+    base = pd.DataFrame({"date": all_dates})
+
+    rows = list_transactions(month=month, db_path=db_path)
     if rows.empty:
-        return pd.DataFrame(columns=["month", "income", "expense", "balance"])
-    rows = rows.copy()
-    rows["month"] = rows["date"].str.slice(0, 7)
+        base["income"] = 0.0
+        base["expense"] = 0.0
+        base["balance"] = 0.0
+        return base
+
     pivot = rows.pivot_table(
-        index="month", columns="type", values="amount", aggfunc="sum", fill_value=0
+        index="date", columns="type", values="amount", aggfunc="sum", fill_value=0
     )
-    # 某些月份可能只有收入或只有支出，缺失列补 0
-    pivot["income"] = pivot["income"] if "income" in pivot.columns else 0
-    pivot["expense"] = pivot["expense"] if "expense" in pivot.columns else 0
-    pivot["balance"] = pivot["income"] - pivot["expense"]
-    return pivot.reset_index()[["month", "income", "expense", "balance"]].sort_values("month")
+    # 某些天可能只有收入或只有支出，缺失列补 0
+    for column in ("income", "expense"):
+        if column not in pivot.columns:
+            pivot[column] = 0
+    pivot = pivot.reset_index()[["date", "income", "expense"]]
+    merged = base.merge(pivot, on="date", how="left").fillna(0.0)
+    merged["balance"] = merged["income"] - merged["expense"]
+    return merged
 
 
 # ---------- 预算 ----------

@@ -17,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import streamlit as st
 
-from app.charts import create_category_pie_chart, create_monthly_trend_chart
+from app.charts import create_category_pie_chart, create_daily_trend_chart
 from app.database import list_categories
 from app.models import Budget, Transaction
 from app.services import (
@@ -26,8 +26,8 @@ from app.services import (
     delete_transaction,
     export_transactions_csv,
     get_category_expense_summary,
+    get_daily_trend,
     get_monthly_summary,
-    get_monthly_trend,
     import_transactions_csv,
     list_transactions,
     save_budget,
@@ -197,12 +197,12 @@ def render_analysis(month: str) -> None:
     else:
         st.plotly_chart(create_category_pie_chart(category_summary), width="stretch")
 
-    st.markdown("**月度收支趋势**")
-    trend = get_monthly_trend()
-    if trend.empty:
-        st.info("暂无交易记录，无法生成趋势图。")
+    st.markdown(f"**{month} 每日收支趋势**")
+    daily_trend = get_daily_trend(month)
+    if daily_trend[["income", "expense"]].to_numpy().sum() == 0:
+        st.info("该月暂无交易记录，无法生成趋势图。")
     else:
-        st.plotly_chart(create_monthly_trend_chart(trend), width="stretch")
+        st.plotly_chart(create_daily_trend_chart(daily_trend, month), width="stretch")
 
 
 def render_budget(month: str) -> None:
