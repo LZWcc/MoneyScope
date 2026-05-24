@@ -258,3 +258,18 @@ def test_create_monthly_trend_chart_returns_plotly_figure():
 
     assert figure.layout.title.text == "月度收支趋势"
     assert len(figure.data) >= 2
+
+
+def test_monthly_trend_chart_uses_category_x_axis():
+    data = pd.DataFrame(
+        [
+            {"month": "2026-04", "income": 1000, "expense": 300, "balance": 700},
+            {"month": "2026-05", "income": 3000, "expense": 850, "balance": 2150},
+        ]
+    )
+
+    figure = create_monthly_trend_chart(data)
+
+    # 横轴必须是离散类别，避免月份被当成日期解析导致刻度错乱
+    assert figure.layout.xaxis.type == "category"
+    assert list(figure.data[0].x) == ["2026-04", "2026-05"]

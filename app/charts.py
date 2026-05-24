@@ -48,5 +48,11 @@ def create_monthly_trend_chart(monthly_trend: pd.DataFrame) -> go.Figure:
                 name="结余",
             )
         )
-    figure.update_layout(title="月度收支趋势", xaxis_title="月份", yaxis_title="金额")
+    # 月份是 "YYYY-MM" 字符串，若不指定类型，plotly 会把它当成日期解析，
+    # 横轴会出现按天分布的刻度；用 category 让每个月份成为离散、等距的标签。
+    figure.update_layout(
+        title="月度收支趋势",
+        yaxis_title="金额",
+        xaxis=dict(title="月份", type="category"),
+    )
     return figure
