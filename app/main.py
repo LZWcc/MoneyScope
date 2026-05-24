@@ -37,6 +37,21 @@ from app.utils import parse_month
 
 # 界面上的中文类型标签与数据库存储值之间的映射
 TYPE_LABEL_TO_VALUE = {"收入": "income", "支出": "expense"}
+TYPE_VALUE_TO_LABEL = {"income": "收入", "expense": "支出"}
+
+# 自定义分类选项的固定文案
+CUSTOM_CATEGORY_OPTION = "其他（自定义）"
+
+# 交易明细表格的中文列配置
+TRANSACTION_COLUMN_CONFIG = {
+    "id": st.column_config.NumberColumn("编号"),
+    "date": st.column_config.TextColumn("日期"),
+    "type": st.column_config.TextColumn("类型"),
+    "category": st.column_config.TextColumn("分类"),
+    "amount": st.column_config.NumberColumn("金额", format="%.2f"),
+    "description": st.column_config.TextColumn("备注"),
+    "created_at": st.column_config.TextColumn("创建时间"),
+}
 
 
 def current_month() -> str:
@@ -59,9 +74,16 @@ def render_overview(month: str) -> None:
     st.subheader(f"{month} 收支概览")
     summary = get_monthly_summary(month)
     col_income, col_expense, col_balance = st.columns(3)
-    col_income.metric("总收入", f"{summary['income']:.2f}")
-    col_expense.metric("总支出", f"{summary['expense']:.2f}")
-    col_balance.metric("结余", f"{summary['balance']:.2f}")
+    col_income.metric("总收入", f"¥ {summary['income']:.2f}")
+    col_expense.metric("总支出", f"¥ {summary['expense']:.2f}")
+    # 结余用 delta 着色：结余为正显示绿色，为负显示红色
+    col_balance.metric(
+        "结余",
+        f"¥ {summary['balance']:.2f}",
+        delta=f"{summary['balance']:.2f}",
+        delta_color="normal",
+    )
+    st.divider()
 
     warnings = check_budget_warnings(month)
     if warnings:
@@ -72,14 +94,21 @@ def render_overview(month: str) -> None:
 
 
 def render_add_transaction() -> None:
-    """添加记录标签页：表单录入一条收入或支出。"""
+    """添加记录标签页：表单录入一条收入或支出。
+
+    “类型”选择框放在表单之外，使切换收入/支出时整页重跑，
+    下方分类列表能随类型实时联动；表单提交后自动清空。
+    """
     st.subheader("添加交易记录")
-    with st.form("add_transaction_form"):
+
+    # 联动控件：放在 form 外，切换时触发重跑以刷新分类列表
+    type_label = st.selectbox("类型", list(TYPE_LABEL_TO_VALUE.keys()), key="add_type")
+    existing_categories = list_categories(TYPE_LABEL_TO_VALUE[type_label])
+
+    with st.form("add_transaction_form", clear_on_submit=True):
         record_date = st.date_input("日期", value=date.today())
-        type_label = st.selectbox("类型", list(TYPE_LABEL_TO_VALUE.keys()))
-        existing_categories = list_categories(TYPE_LABEL_TO_VALUE[type_label])
         category_choice = st.selectbox(
-            "分类", existing_categories + ["其他（自定义）"]
+            "分类", existing_categories + [CUSTOM_CATEGORY_OPTION]
         )
         custom_category = st.text_input("自定义分类（选择“其他（自定义）”时填写）")
         amount = st.number_input("金额", min_value=0.0, step=0.5, format="%.2f")
@@ -89,7 +118,7 @@ def render_add_transaction() -> None:
     if submitted:
         category = (
             custom_category.strip()
-            if category_choice == "其他（自定义）"
+            if category_choice == CUSTOM_CATEGORY_OPTION
             else category_choice
         )
         try:
@@ -101,7 +130,9 @@ def render_add_transaction() -> None:
                 description=description,
             )
             add_transaction(transaction)
-            st.success("交易记录已保存。")
+            # toast 能在重跑后短暂保留，重跑确保概览等先渲染的标签页读到最新数据
+            st.toast("交易记录已保存", icon="✅")
+            st.rerun()
         except (ValueError, RuntimeError) as exc:
             st.error(str(exc))
 
@@ -120,18 +151,31 @@ def render_transaction_list() -> None:
             type=TYPE_LABEL_TO_VALUE.get(type_label),
             category=category_filter or None,
         )
-        st.dataframe(rows, width="stretch")
     except (ValueError, RuntimeError) as exc:
         st.error(str(exc))
         return
 
+    if rows.empty:
+        st.info("暂无符合条件的交易记录。")
+    else:
+        display = rows.copy()
+        display["type"] = display["type"].map(TYPE_VALUE_TO_LABEL)
+        st.dataframe(
+            display,
+            hide_index=True,
+            width="stretch",
+            column_config=TRANSACTION_COLUMN_CONFIG,
+        )
+
     st.markdown("**删除记录**")
-    col_id, col_button = st.columns([3, 1])
+    # vertical_alignment="bottom" 让按钮与带标签的数字输入框底部对齐，避免错位
+    col_id, col_button = st.columns([3, 1], vertical_alignment="bottom")
     delete_id = col_id.number_input("要删除的记录 id", min_value=0, step=1, value=0)
-    if col_button.button("删除"):
+    if col_button.button("删除", width="stretch"):
         try:
             if delete_transaction(int(delete_id)):
-                st.success(f"已删除记录 {int(delete_id)}。")
+                st.toast(f"已删除记录 {int(delete_id)}", icon="🗑️")
+                st.rerun()
             else:
                 st.warning("未找到对应记录。")
         except (ValueError, RuntimeError) as exc:
@@ -141,17 +185,26 @@ def render_transaction_list() -> None:
 def render_analysis(month: str) -> None:
     """统计分析标签页：分类支出占比图与月度收支趋势图。"""
     st.subheader("统计分析")
-    category_summary = get_category_expense_summary(month)
-    st.plotly_chart(create_category_pie_chart(category_summary), width="stretch")
 
+    st.markdown(f"**{month} 分类支出占比**")
+    category_summary = get_category_expense_summary(month)
+    if category_summary.empty:
+        st.info("该月暂无支出记录。")
+    else:
+        st.plotly_chart(create_category_pie_chart(category_summary), width="stretch")
+
+    st.markdown("**月度收支趋势**")
     trend = get_monthly_trend()
-    st.plotly_chart(create_monthly_trend_chart(trend), width="stretch")
+    if trend.empty:
+        st.info("暂无交易记录，无法生成趋势图。")
+    else:
+        st.plotly_chart(create_monthly_trend_chart(trend), width="stretch")
 
 
 def render_budget(month: str) -> None:
     """预算设置标签页：设置月度总预算或分类预算，并展示提醒。"""
     st.subheader("预算设置")
-    with st.form("budget_form"):
+    with st.form("budget_form", clear_on_submit=True):
         budget_month = st.text_input("预算月份（YYYY-MM）", value=month)
         scope = st.selectbox("预算范围", ["月度总预算", "分类预算"])
         budget_category = st.text_input("分类（分类预算时填写）", value="")
@@ -162,7 +215,8 @@ def render_budget(month: str) -> None:
         try:
             category = resolve_budget_category(scope, budget_category)
             save_budget(Budget(month=budget_month, amount=amount, category=category))
-            st.success("预算已保存。")
+            st.toast("预算已保存", icon="✅")
+            st.rerun()
         except (ValueError, RuntimeError) as exc:
             st.error(str(exc))
 
@@ -195,6 +249,7 @@ def main() -> None:
     """渲染 MoneyScope 主页面。"""
     st.set_page_config(page_title="MoneyScope", page_icon="MS", layout="wide")
     st.title("MoneyScope：个人消费记录与数据分析系统")
+    st.caption("记录收支 · 统计分析 · 预算提醒 · CSV 导入导出")
 
     # 侧边栏选择要查看的月份，供概览、分析和预算页面共用
     selected_month = st.sidebar.text_input("查看月份（YYYY-MM）", value=current_month())
