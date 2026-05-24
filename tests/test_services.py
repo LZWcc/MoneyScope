@@ -1,16 +1,16 @@
 """MoneyScope 服务层与模型层测试。
 
 测试聚焦外部行为：模型校验、数据库初始化、交易增删查筛选、
-统计汇总、预算提醒、CSV 导入导出以及图表生成。数据库测试使用临时
-SQLite 文件，避免污染真实的 data/moneyscope.db。
+统计汇总、预算提醒以及 CSV 导入导出。数据库测试使用临时 SQLite
+文件，避免污染真实的 data/moneyscope.db。
 """
 
 from io import StringIO
-import sqlite3
 
 import pandas as pd
 import pytest
 
+from app import main as app_main
 from app.charts import create_category_pie_chart, create_monthly_trend_chart
 from app.database import initialize_database
 from app.models import Budget, Transaction
@@ -66,6 +66,11 @@ def test_budget_accepts_total_month_budget():
     assert budget.amount == 1200
 
 
+def test_category_budget_requires_category_text():
+    with pytest.raises(ValueError, match="分类预算必须填写分类"):
+        app_main.resolve_budget_category("分类预算", "   ")
+
+
 def test_parse_month_rejects_bad_format():
     with pytest.raises(ValueError, match="月份格式应为 YYYY-MM"):
         parse_month("2026/05")
@@ -78,6 +83,8 @@ def test_initialize_database_creates_tables(tmp_path):
     db_path = tmp_path / "test.db"
 
     initialize_database(db_path)
+
+    import sqlite3
 
     with sqlite3.connect(db_path) as conn:
         table_names = {
