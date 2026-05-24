@@ -96,19 +96,158 @@ Streamlit UI (app/main.py)
 
 ## 四、关键代码说明
 
-> 待 MVP 实现后补充。建议按模块各选 1 段代表性代码并配简短讲解：
-> - `models.py`：`Transaction.__post_init__` 校验逻辑。
-> - `database.py`：`initialize_database` 建表与默认分类。
-> - `services.py`：`get_monthly_summary` / `check_budget_warnings` 统计与预算判断。
-> - `charts.py`：`create_monthly_trend_chart` 图表生成。
+### 4.1 Transaction 数据类与字段校验（`app/models.py`）
+
+```python
+@dataclass
+class Transaction:
+    """表示一条收入或支出记录。"""
+    date: str
+    type: str
+    category: str
+    amount: float
+    description: str = ""
+    id: int | None = None
+    created_at: str | None = None
+
+    def __post_init__(self) -> None:
+        self.date = parse_date(self.date)
+        self.type = validate_transaction_type(self.type)
+        self.category = validate_category(self.category)
+        self.amount = validate_amount(self.amount)
+        self.description = str(self.description or "").strip()
+```
+
+使用 Python 内置 `dataclass` 装饰器定义数据类，在 `__post_init__` 中集中完成所有字段的规范化与校验，体现封装与职责单一。`parse_date`、`validate_amount` 等工具函数统一位于 `app/utils.py`，错误信息全部使用中文，界面层可直接展示。
+
+### 4.2 数据库初始化（`app/database.py`）
+
+```python
+def initialize_database(db_path: Path | str = DATABASE_PATH) -> None:
+    """创建三张表并写入默认分类（已存在则跳过）。"""
+    with get_connection(db_path) as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS transactions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                date TEXT NOT NULL,
+                type TEXT NOT NULL CHECK (type IN ('income', 'expense')),
+                category TEXT NOT NULL,
+                amount REAL NOT NULL CHECK (amount > 0),
+                description TEXT,
+                created_at TEXT NOT NULL
+            )
+        """)
+        # ...（categories 表与 budgets 表略）
+        conn.executemany(
+            "INSERT OR IGNORE INTO categories (name, type, keywords) VALUES (?, ?, ?)",
+            DEFAULT_CATEGORIES,
+        )
+        conn.commit()
+```
+
+建表使用 `CREATE TABLE IF NOT EXISTS` 保证幂等，`CHECK` 约束在数据库层保护数据合法性；所有 SQL 使用 `?` 参数化占位，防止 SQL 注入；默认分类使用 `INSERT OR IGNORE` 保证首次写入后不重复插入。
+
+### 4.3 月度统计与预算警告（`app/services.py`）
+
+```python
+def get_monthly_summary(month: str, ...) -> dict[str, float]:
+    """返回指定月份的总收入、总支出和结余。"""
+    rows = list_transactions(month=month, ...)
+    income = float(rows.loc[rows["type"] == "income", "amount"].sum())
+    expense = float(rows.loc[rows["type"] == "expense", "amount"].sum())
+    return {"income": income, "expense": expense, "balance": income - expense}
+
+def check_budget_warnings(month: str, ...) -> list[str]:
+    """支出超过预算提示已超出，达到 80% 提示接近预算。"""
+    for budget in budgets:
+        if spent > limit:
+            warnings.append(f"{name}已超过预算：已支出 {spent:.2f}，预算 {limit:.2f}")
+        elif spent >= limit * 0.8:
+            warnings.append(f"{name}接近预算：已支出 {spent:.2f}，预算 {limit:.2f}")
+    return warnings
+```
+
+统计函数使用 pandas 向量化操作，利用布尔索引按类型过滤后求和，效率高且可读性强。预算检查逻辑清晰：超额报"已超过"，达 80% 报"接近"，错误信息直接暴露给界面层。
+
+### 4.4 图表生成（`app/charts.py`）
+
+```python
+def create_daily_trend_chart(daily_trend: pd.DataFrame, month: str) -> go.Figure:
+    """生成月度每日收支趋势图，横轴固定为整月范围。"""
+    figure = go.Figure()
+    for column, name in (("income", "收入"), ("expense", "支出"), ("balance", "结余")):
+        figure.add_trace(
+            go.Scatter(x=x, y=daily_trend[column], mode="lines+markers", name=name)
+        )
+    start = pd.to_datetime(f"{month}-01")
+    end = start + pd.offsets.MonthEnd(0)
+    figure.update_layout(
+        xaxis=dict(type="date", range=[start, end], tickformat="%m-%d")
+    )
+    return figure
+```
+
+图表层只接收统计后的 pandas 数据，不访问数据库。横轴通过 `pd.offsets.MonthEnd(0)` 自动计算月末，保证 2 月、大月、小月都能正确锁定整月范围。图表对象直接传给 `st.plotly_chart()` 渲染。
 
 ## 五、测试与运行截图
 
-> 待运行后补充。自动测试结果与命令见 `docs/test-report.md`；运行与功能截图由成员 C 整理后插入本节。建议覆盖：添加记录、筛选、分类图表、月度趋势、预算提醒、CSV 导入导出。
+### 自动化测试
+
+运行命令：
+
+```bash
+source .venv/bin/activate
+python -m pytest tests/ -v
+```
+
+结果：21 个测试用例全部通过，详见 `docs/test-report.md`。
+
+### 功能截图
+
+> 截图由成员 C 在运行 MVP 后整理，插入以下位置：
+>
+> 1. 「添加记录」页面截图（含类型/分类联动效果）
+> 2. 「交易明细」页面截图（含筛选控件和数据表格）
+> 3. 「概览」页面截图（含收入/支出/结余三列和预算提醒）
+> 4. 「统计分析」页面截图（分类饼图 + 每日趋势折线图）
+> 5. 「预算设置」页面截图
+> 6. 「导入导出」页面截图（含导入成功提示）
 
 ## 六、项目总结
 
-> 待项目完成后补充，建议包含：
-> - 亮点：完整收支闭环、清晰分层结构、中文异常提示、AI 辅助开发记录。
-> - 不足：分类暂以文本存储、无用户系统、统计维度有限。
-> - 改进方向：分类外键化、自动分类、数据备份恢复、更多可视化维度。
+### 6.1 完成情况
+
+本项目按照课程要求完成了以下内容：
+
+1. 使用 Python + Streamlit + SQLite + pandas + plotly 技术栈，其中 Streamlit 和 plotly 为课堂未教授的第三方库。
+2. 使用 SQLite 持久化交易记录、分类和预算三类数据。
+3. 对金额、日期、交易类型、分类、月份格式、CSV 字段等可预期错误全部做了中文异常处理。
+4. 定义了 `Transaction` 和 `Budget` 两个有意义的数据类，在 `__post_init__` 中实现字段校验。
+5. 所有公开函数和类都有 docstring，关键逻辑添加了注释。
+6. `AI_LOG.md` 记录了项目开发全过程中的 AI 辅助使用情况。
+7. Git 提交历史清晰，按功能模块分批提交。
+8. 提供了 README、项目报告、PPT 大纲、测试记录和示例数据。
+
+### 6.2 亮点
+
+- **完整的收支闭环**：从记录录入、持久化存储、筛选查询、统计分析、图表可视化到 CSV 导入导出，功能链路完整。
+- **清晰的分层架构**：数据库层 / 模型层 / 服务层 / 图表层 / 界面层职责分明，界面层不写 SQL，服务层不直接操作 UI。
+- **全面的中文异常提示**：所有错误在界面层以中文展示，不静默忽略，不直接崩溃。
+- **测试覆盖服务层**：21 个 pytest 测试全部通过，使用临时数据库文件，不污染真实数据。
+- **AI 使用记录完整**：AI_LOG.md 真实记录了各阶段 AI 辅助开发的提示词、输出摘要和人工修改说明。
+
+### 6.3 不足
+
+- 分类目前以文本形式存储在 `transactions` 表，未做外键约束，删除分类不会联动更新历史记录。
+- 没有用户系统，所有数据共享同一个本地数据库文件。
+- 统计维度相对简单，只有月度汇总和分类占比，缺少年度汇总、自定义时间段分析等进阶统计。
+- 每日趋势图仅展示当月数据，跨月度趋势对比需手动切换月份。
+
+### 6.4 改进方向
+
+- 分类外键化，支持分类管理（新增、重命名、删除）。
+- 基于 `categories.keywords` 字段实现关键词自动分类（可选功能）。
+- 添加数据备份与恢复功能，定期导出 SQLite 文件。
+- 年度汇总与多月度对比图表。
+- 更完善的仪表盘布局，支持自定义时间段分析。
+
