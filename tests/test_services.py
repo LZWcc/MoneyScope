@@ -1,15 +1,17 @@
 """MoneyScope 服务层与模型层测试。
 
 测试聚焦外部行为：模型校验、数据库初始化、交易增删查筛选、
-统计汇总、预算提醒以及 CSV 导入导出。数据库测试使用临时 SQLite
-文件，避免污染真实的 data/moneyscope.db。
+统计汇总、预算提醒、CSV 导入导出以及图表生成。数据库测试使用临时
+SQLite 文件，避免污染真实的 data/moneyscope.db。
 """
 
 from io import StringIO
 import sqlite3
 
+import pandas as pd
 import pytest
 
+from app.charts import create_category_pie_chart, create_monthly_trend_chart
 from app.database import initialize_database
 from app.models import Budget, Transaction
 from app.services import (
@@ -226,3 +228,26 @@ def test_export_transactions_csv_uses_expected_columns(tmp_path):
 
     assert csv_text.startswith("date,type,category,amount,description")
     assert "2026-05-02,expense,餐饮,28.5,午餐" in csv_text
+
+
+# ---------- Task 6：图表 ----------
+
+
+def test_create_category_pie_chart_returns_plotly_figure():
+    data = pd.DataFrame([{"category": "餐饮", "amount": 38.5}])
+
+    figure = create_category_pie_chart(data)
+
+    assert figure.layout.title.text == "分类支出占比"
+    assert len(figure.data) == 1
+
+
+def test_create_monthly_trend_chart_returns_plotly_figure():
+    data = pd.DataFrame(
+        [{"month": "2026-05", "income": 3000, "expense": 100, "balance": 2900}]
+    )
+
+    figure = create_monthly_trend_chart(data)
+
+    assert figure.layout.title.text == "月度收支趋势"
+    assert len(figure.data) >= 2
