@@ -101,16 +101,20 @@ def render_add_transaction() -> None:
     """
     st.subheader("添加交易记录")
 
-    # 联动控件：放在 form 外，切换时触发重跑以刷新分类列表
+    # 联动控件放在 form 外：表单内的控件在提交前不会触发重跑，
+    # 因此“类型”和“分类”放在表单外，才能让分类随类型实时联动，
+    # 并且只有选择“其他（自定义）”时才显示自定义分类输入框。
     type_label = st.selectbox("类型", list(TYPE_LABEL_TO_VALUE.keys()), key="add_type")
     existing_categories = list_categories(TYPE_LABEL_TO_VALUE[type_label])
+    category_choice = st.selectbox(
+        "分类", existing_categories + [CUSTOM_CATEGORY_OPTION], key="add_category"
+    )
+    custom_category = ""
+    if category_choice == CUSTOM_CATEGORY_OPTION:
+        custom_category = st.text_input("自定义分类")
 
     with st.form("add_transaction_form", clear_on_submit=True):
         record_date = st.date_input("日期", value=date.today())
-        category_choice = st.selectbox(
-            "分类", existing_categories + [CUSTOM_CATEGORY_OPTION]
-        )
-        custom_category = st.text_input("自定义分类（选择“其他（自定义）”时填写）")
         amount = st.number_input("金额", min_value=0.0, step=0.5, format="%.2f")
         description = st.text_input("备注", value="")
         submitted = st.form_submit_button("保存")
