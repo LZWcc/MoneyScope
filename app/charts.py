@@ -20,33 +20,21 @@ def create_category_pie_chart(category_summary: pd.DataFrame) -> go.Figure:
     )
 
 
-def create_monthly_trend_chart(monthly_trend: pd.DataFrame) -> go.Figure:
-    """根据月度趋势数据生成收入、支出、结余三条折线。"""
+def create_daily_trend_chart(daily_trend: pd.DataFrame, month: str) -> go.Figure:
+    """根据某月每日收支数据生成趋势图，横轴固定为该月 1 号到月末。"""
     figure = go.Figure()
-    if not monthly_trend.empty:
-        figure.add_trace(
-            go.Scatter(
-                x=monthly_trend["month"],
-                y=monthly_trend["income"],
-                mode="lines+markers",
-                name="收入",
+    if not daily_trend.empty:
+        x = pd.to_datetime(daily_trend["date"])
+        for column, name in (("income", "收入"), ("expense", "支出"), ("balance", "结余")):
+            figure.add_trace(
+                go.Scatter(x=x, y=daily_trend[column], mode="lines+markers", name=name)
             )
-        )
-        figure.add_trace(
-            go.Scatter(
-                x=monthly_trend["month"],
-                y=monthly_trend["expense"],
-                mode="lines+markers",
-                name="支出",
-            )
-        )
-        figure.add_trace(
-            go.Scatter(
-                x=monthly_trend["month"],
-                y=monthly_trend["balance"],
-                mode="lines+markers",
-                name="结余",
-            )
-        )
-    figure.update_layout(title="月度收支趋势", xaxis_title="月份", yaxis_title="金额")
+    # 横轴固定覆盖整月：1 号到月末，即使部分日期没有数据也展示完整范围
+    start = pd.to_datetime(f"{month}-01")
+    end = start + pd.offsets.MonthEnd(0)
+    figure.update_layout(
+        title=f"{month} 每日收支趋势",
+        yaxis_title="金额",
+        xaxis=dict(title="日期", type="date", range=[start, end], tickformat="%m-%d"),
+    )
     return figure
