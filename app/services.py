@@ -84,12 +84,43 @@ def list_transactions(
 
 
 def delete_transaction(transaction_id: int, db_path: Path | str = DATABASE_PATH) -> bool:
-    """按 id 删除交易记录，删除成功返回 True，记录不存在返回 False。"""
+    """按 id 删除交易记录，删除成功返回 True，记录不存在返回 False。
+
+    删除后会重排 transactions 表的编号，保证界面展示的编号连续。
+    """
     initialize_database(db_path)
     with get_connection(db_path) as conn:
         cursor = conn.execute("DELETE FROM transactions WHERE id = ?", (transaction_id,))
+        deleted = cursor.rowcount > 0
+        if deleted:
+            _renumber_transaction_ids(conn)
         conn.commit()
-        return cursor.rowcount > 0
+        return deleted
+
+
+def _renumber_transaction_ids(conn) -> None:
+    """重排交易记录 id，并同步 SQLite 自增序列。"""
+    rows = conn.execute(
+        "SELECT id FROM transactions ORDER BY created_at ASC, id ASC"
+    ).fetchall()
+    old_ids = [int(row["id"]) for row in rows]
+
+    # 先转为负数，避免把 6 改成 3 时与原来的 3 发生主键冲突。
+    for new_id, old_id in enumerate(old_ids, start=1):
+        conn.execute("UPDATE transactions SET id = ? WHERE id = ?", (-new_id, old_id))
+    for new_id in range(1, len(old_ids) + 1):
+        conn.execute("UPDATE transactions SET id = ? WHERE id = ?", (new_id, -new_id))
+
+    max_id = len(old_ids)
+    cursor = conn.execute(
+        "UPDATE sqlite_sequence SET seq = ? WHERE name = 'transactions'",
+        (max_id,),
+    )
+    if cursor.rowcount == 0:
+        conn.execute(
+            "INSERT INTO sqlite_sequence (name, seq) VALUES ('transactions', ?)",
+            (max_id,),
+        )
 
 
 # ---------- 统计分析 ----------

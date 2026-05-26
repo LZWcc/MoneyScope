@@ -141,6 +141,24 @@ def test_delete_transaction_removes_existing_row(tmp_path):
     assert list_transactions(db_path=db_path).empty
 
 
+def test_delete_transaction_renumbers_remaining_rows(tmp_path):
+    db_path = tmp_path / "test.db"
+    initialize_database(db_path)
+    add_transaction(Transaction("2026-05-01", "expense", "餐饮", 10), db_path=db_path)
+    deleted_id = add_transaction(Transaction("2026-05-02", "expense", "交通", 20), db_path=db_path)
+    add_transaction(Transaction("2026-05-03", "income", "工资", 3000), db_path=db_path)
+    add_transaction(Transaction("2026-05-04", "expense", "娱乐", 50), db_path=db_path)
+
+    assert delete_transaction(deleted_id, db_path=db_path) is True
+    rows = list_transactions(db_path=db_path)
+
+    assert sorted(rows["id"].tolist()) == [1, 2, 3]
+    next_id = add_transaction(
+        Transaction("2026-05-05", "expense", "购物", 80), db_path=db_path
+    )
+    assert next_id == 4
+
+
 # ---------- Task 4：统计与预算 ----------
 
 
