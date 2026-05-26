@@ -11,21 +11,36 @@ import plotly.express as px
 import plotly.graph_objects as go
 
 # 收支配色：与 UI 主题保持一致（绿收入 / 红支出 / 蓝结余）
-_COLOR_INCOME  = "#16a34a"   # 绿
-_COLOR_EXPENSE = "#dc2626"   # 红
-_COLOR_BALANCE = "#2563eb"   # 蓝
+_COLOR_INCOME  = "#16a34a"
+_COLOR_EXPENSE = "#dc2626"
+_COLOR_BALANCE = "#2563eb"
+_COLOR_TEXT    = "#111827"
+_COLOR_MUTED   = "#64748b"
+_COLOR_GRID    = "rgba(15, 23, 42, 0.08)"
 
 # 饼图配色板（支出分类）
 _PIE_COLORS = [
-    "#f87171", "#fb923c", "#fbbf24", "#a3e635",
-    "#34d399", "#38bdf8", "#818cf8", "#e879f9",
+    "#ef4444", "#f59e0b", "#eab308", "#22c55e",
+    "#14b8a6", "#0ea5e9", "#6366f1", "#d946ef",
 ]
+
+
+def _apply_dashboard_theme(figure: go.Figure) -> go.Figure:
+    """统一图表的仪表盘风格。"""
+    figure.update_layout(
+        paper_bgcolor="rgba(255,255,255,0)",
+        plot_bgcolor="rgba(255,255,255,0)",
+        font=dict(color=_COLOR_TEXT, size=13),
+        title=dict(font=dict(size=17, color=_COLOR_TEXT), x=0.02, xanchor="left"),
+        margin=dict(t=54, b=52, l=18, r=18),
+    )
+    return figure
 
 
 def create_category_pie_chart(category_summary: pd.DataFrame) -> go.Figure:
     """根据分类支出汇总生成饼图；数据为空时返回带标题的空图。"""
     if category_summary.empty:
-        return go.Figure().update_layout(title="分类支出占比")
+        return _apply_dashboard_theme(go.Figure().update_layout(title="分类支出占比"))
     fig = px.pie(
         category_summary,
         names="category",
@@ -40,10 +55,14 @@ def create_category_pie_chart(category_summary: pd.DataFrame) -> go.Figure:
         hovertemplate="%{label}<br>¥%{value:.2f}<br>%{percent}<extra></extra>",
     )
     fig.update_layout(
-        margin=dict(t=40, b=10, l=10, r=10),
-        legend=dict(orientation="v", x=1.02, y=0.5),
+        legend=dict(
+            orientation="v",
+            x=1.02,
+            y=0.5,
+            font=dict(color=_COLOR_MUTED),
+        ),
     )
-    return fig
+    return _apply_dashboard_theme(fig)
 
 
 def create_daily_trend_chart(daily_trend: pd.DataFrame, month: str) -> go.Figure:
@@ -78,15 +97,20 @@ def create_daily_trend_chart(daily_trend: pd.DataFrame, month: str) -> go.Figure
     figure.update_layout(
         title=f"{month} 每日收支趋势",
         yaxis_title="金额 (¥)",
-        yaxis=dict(tickprefix="¥"),
+        yaxis=dict(
+            tickprefix="¥",
+            gridcolor=_COLOR_GRID,
+            zerolinecolor=_COLOR_GRID,
+        ),
         xaxis=dict(
             title="日期",
             type="date",
             range=[start, end],
             tickformat="%m-%d",
+            gridcolor=_COLOR_GRID,
+            zerolinecolor=_COLOR_GRID,
         ),
-        legend=dict(orientation="h", y=-0.2),
-        margin=dict(t=40, b=60, l=10, r=10),
+        legend=dict(orientation="h", y=-0.24, font=dict(color=_COLOR_MUTED)),
         hovermode="x unified",
     )
-    return figure
+    return _apply_dashboard_theme(figure)

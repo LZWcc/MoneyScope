@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import sys
 from datetime import date
+from html import escape
 from pathlib import Path
 
 # 以 `streamlit run app/main.py` 启动时，Streamlit 只把 app/ 目录加入 sys.path，
@@ -61,32 +62,393 @@ TRANSACTION_COLUMN_CONFIG = {
     "created_at":  st.column_config.TextColumn("创建时间"),
 }
 
-# 自定义全局 CSS
+# 自定义全局 CSS：只控制展示层，不改变表单、查询和数据保存逻辑。
 _CSS = """
 <style>
-/* 侧边栏背景稍深，与主区域形成对比 */
+.stApp {
+    background: linear-gradient(180deg, #f8fafc 0%, #eef3f8 100%);
+    color: #111827;
+}
+
+/* 隐藏 Streamlit 自带英文工具栏和菜单，保留项目自己的中文界面 */
+#MainMenu,
+footer,
+[data-testid="stToolbar"],
+[data-testid="stDecoration"],
+[data-testid="stStatusWidget"],
+[data-testid="stDeployButton"],
+[data-testid="baseButton-headerNoPadding"],
+header [data-testid="stToolbar"] {
+    display: none !important;
+    visibility: hidden !important;
+}
+
+header {
+    background: transparent !important;
+    height: 0 !important;
+}
+
+.block-container {
+    max-width: 1220px;
+    padding-top: 1.35rem;
+    padding-bottom: 2.4rem;
+}
+
+/* 侧边栏导航 */
 [data-testid="stSidebar"] {
-    background-color: #f7f8fa;
+    background: rgba(255, 255, 255, 0.86);
+    border-right: 1px solid #e5e7eb;
+    backdrop-filter: blur(18px);
 }
-/* metric 卡片加底色 */
+
+[data-testid="stSidebar"] h2 {
+    letter-spacing: 0;
+}
+
+.sidebar-brand {
+    padding: 0.25rem 0.25rem 0.8rem;
+}
+
+.sidebar-brand-title {
+    font-size: 1.45rem;
+    font-weight: 800;
+    color: #0f172a;
+    margin: 0;
+}
+
+.sidebar-brand-subtitle {
+    color: #64748b;
+    font-size: 0.88rem;
+    margin-top: 0.25rem;
+}
+
+/* 页面顶部 */
+.page-heading {
+    margin-bottom: 1.15rem;
+}
+
+.page-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.28rem 0.62rem;
+    border: 1px solid #dbe4ef;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.70);
+    color: #2563eb;
+    font-size: 0.82rem;
+    font-weight: 700;
+    margin-bottom: 0.55rem;
+}
+
+.page-heading h1 {
+    margin: 0;
+    color: #0f172a;
+    font-size: clamp(1.85rem, 3vw, 3.05rem);
+    line-height: 1.08;
+    letter-spacing: 0;
+}
+
+.page-heading p {
+    max-width: 760px;
+    color: #64748b;
+    font-size: 1rem;
+    line-height: 1.7;
+    margin: 0.65rem 0 0;
+}
+
+.dashboard-strip {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.85rem;
+    margin: 1rem 0 1.2rem;
+}
+
+.dashboard-chip {
+    background: rgba(255, 255, 255, 0.76);
+    border: 1px solid rgba(226, 232, 240, 0.95);
+    border-radius: 14px;
+    padding: 0.95rem 1rem;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
+}
+
+.dashboard-chip span {
+    display: block;
+    color: #64748b;
+    font-size: 0.82rem;
+    font-weight: 650;
+}
+
+.dashboard-chip strong {
+    display: block;
+    color: #0f172a;
+    font-size: 1.12rem;
+    line-height: 1.2;
+    margin-top: 0.35rem;
+}
+
+/* 自定义指标卡 */
+.metric-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.15rem;
+}
+
+.metric-card {
+    min-height: 142px;
+    background: rgba(255, 255, 255, 0.82);
+    border: 1px solid rgba(226, 232, 240, 0.9);
+    border-radius: 18px;
+    padding: 1.1rem 1.15rem;
+    box-shadow: 0 14px 32px rgba(15, 23, 42, 0.07);
+    backdrop-filter: blur(16px);
+}
+
+.metric-card-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.metric-label {
+    color: #64748b;
+    font-size: 0.9rem;
+    font-weight: 700;
+}
+
+.metric-icon {
+    width: 34px;
+    height: 34px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+    font-size: 1rem;
+    background: #f1f5f9;
+}
+
+.metric-value {
+    color: #0f172a;
+    font-size: clamp(1.55rem, 2.5vw, 2.1rem);
+    font-weight: 800;
+    letter-spacing: 0;
+    line-height: 1.15;
+    margin-top: 1rem;
+    overflow-wrap: anywhere;
+}
+
+.metric-note {
+    color: #64748b;
+    font-size: 0.86rem;
+    margin-top: 0.55rem;
+}
+
+.metric-card.income .metric-icon { background: #dcfce7; color: #15803d; }
+.metric-card.expense .metric-icon { background: #fee2e2; color: #b91c1c; }
+.metric-card.balance .metric-icon { background: #dbeafe; color: #1d4ed8; }
+.metric-card.income .metric-value { color: #16a34a; }
+.metric-card.expense .metric-value { color: #dc2626; }
+
+.section-heading {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 1rem;
+    margin: 0.95rem 0 0.55rem;
+}
+
+.section-heading h3 {
+    color: #0f172a;
+    font-size: 1.12rem;
+    margin: 0;
+}
+
+.section-heading span {
+    color: #64748b;
+    font-size: 0.88rem;
+}
+
+.empty-state-card {
+    min-height: 132px;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.78);
+    border: 1px solid rgba(226, 232, 240, 0.95);
+    border-radius: 16px;
+    padding: 1rem 1.05rem;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
+    display: flex;
+    gap: 0.85rem;
+    align-items: flex-start;
+}
+
+.empty-state-card.compact {
+    min-height: 116px;
+}
+
+.empty-state-card.success {
+    border-color: #bbf7d0;
+    background: rgba(240, 253, 244, 0.76);
+}
+
+.empty-state-icon {
+    width: 36px;
+    height: 36px;
+    flex: 0 0 auto;
+    border-radius: 13px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #eff6ff;
+    color: #2563eb;
+    font-size: 1.05rem;
+}
+
+.empty-state-card.success .empty-state-icon {
+    background: #dcfce7;
+    color: #15803d;
+}
+
+.empty-state-title {
+    color: #0f172a;
+    font-size: 0.98rem;
+    font-weight: 760;
+    line-height: 1.35;
+    margin: 0.05rem 0 0.22rem;
+}
+
+.empty-state-description {
+    color: #64748b;
+    font-size: 0.88rem;
+    line-height: 1.55;
+    margin: 0;
+}
+
+.empty-state-action {
+    display: inline-flex;
+    align-items: center;
+    margin-top: 0.58rem;
+    padding: 0.34rem 0.68rem;
+    border-radius: 999px;
+    background: #0f172a;
+    color: #ffffff;
+    font-size: 0.82rem;
+    font-weight: 700;
+}
+
+.delete-panel {
+    background: rgba(255, 255, 255, 0.78);
+    border: 1px solid rgba(254, 202, 202, 0.82);
+    border-radius: 18px;
+    padding: 1rem 1.05rem;
+    box-shadow: 0 12px 30px rgba(127, 29, 29, 0.06);
+    margin-top: 0.35rem;
+}
+
+.delete-panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 0.75rem;
+}
+
+.delete-panel-title {
+    color: #991b1b;
+    font-size: 0.96rem;
+    font-weight: 780;
+}
+
+.delete-panel-note {
+    color: #64748b;
+    font-size: 0.84rem;
+}
+
+.delete-record-card {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 0.9rem;
+    align-items: center;
+    background: #fff7f7;
+    border: 1px solid #fecaca;
+    border-radius: 16px;
+    padding: 0.86rem 0.95rem;
+    margin: 0.65rem 0 0.85rem;
+}
+
+.delete-record-id {
+    width: 42px;
+    height: 42px;
+    border-radius: 14px;
+    background: #fee2e2;
+    color: #991b1b;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+}
+
+.delete-record-main {
+    color: #0f172a;
+    font-size: 0.98rem;
+    font-weight: 760;
+    line-height: 1.35;
+}
+
+.delete-record-sub {
+    color: #64748b;
+    font-size: 0.84rem;
+    margin-top: 0.2rem;
+}
+
+.delete-record-amount {
+    color: #991b1b;
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+/* Streamlit 原生组件微调 */
 [data-testid="stMetric"] {
-    background: #ffffff;
-    border: 1px solid #e8eaf0;
-    border-radius: 10px;
-    padding: 16px 20px 12px 20px;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
-    min-height: 150px;
+    background: rgba(255,255,255,0.78);
+    border: 1px solid #e5e7eb;
+    border-radius: 14px;
+    padding: 1rem;
+    box-shadow: 0 10px 26px rgba(15,23,42,0.06);
 }
-/* 收入绿 */
-.metric-income [data-testid="stMetricValue"] { color: #16a34a !important; }
-/* 支出红 */
-.metric-expense [data-testid="stMetricValue"] { color: #dc2626 !important; }
-/* 页面顶部标题间距 */
-h1 { margin-bottom: 0.2rem !important; }
-/* 表格行：收入浅绿背景 */
-/* ── 侧边栏导航：隐藏 radio 圆圈，label 做成全宽居中按钮 ── */
+
+[data-testid="stDataFrame"] {
+    border: 1px solid #e5e7eb;
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 12px 28px rgba(15,23,42,0.05);
+}
+
+[data-testid="stForm"], [data-testid="stExpander"] {
+    border-radius: 14px !important;
+    border-color: #e5e7eb !important;
+    box-shadow: 0 10px 26px rgba(15,23,42,0.05);
+}
+
+.stButton > button,
+.stDownloadButton > button,
+[data-testid="stFormSubmitButton"] button {
+    border-radius: 999px !important;
+    font-weight: 700;
+    min-height: 2.7rem;
+    border: 1px solid #cbd5e1 !important;
+    box-shadow: 0 8px 18px rgba(15,23,42,0.06);
+}
+
+.stButton > button[kind="primary"],
+[data-testid="stFormSubmitButton"] button {
+    background: #0f172a !important;
+    border-color: #0f172a !important;
+    color: #ffffff !important;
+}
+
+/* 侧边栏 radio 导航：隐藏圆点，做成按钮列表 */
 [data-testid="stSidebar"] [data-testid="stRadio"] > div {
-    gap: 2px;
+    gap: 6px;
     width: 100%;
 }
 [data-testid="stSidebar"] [data-testid="stRadio"] input[type="radio"] {
@@ -97,17 +459,29 @@ h1 { margin-bottom: 0.2rem !important; }
     align-items: center;
     justify-content: flex-start;
     width: 100%;
-    padding: 10px 16px;
-    border-radius: 8px;
+    padding: 11px 14px;
+    border-radius: 12px;
     cursor: pointer;
-    transition: background 0.15s;
+    transition: background 0.15s, transform 0.15s;
     font-size: 0.95rem;
+    font-weight: 650;
     color: #374151;
     border: 1px solid transparent;
     margin-bottom: 2px;
 }
 [data-testid="stSidebar"] [data-testid="stRadio"] label:hover {
-    background: #e5e7eb;
+    background: #eef2f7;
+    transform: translateX(2px);
+}
+
+@media (max-width: 900px) {
+    .metric-grid, .dashboard-strip {
+        grid-template-columns: 1fr;
+    }
+    .section-heading {
+        align-items: start;
+        flex-direction: column;
+    }
 }
 </style>
 """
@@ -143,15 +517,135 @@ def resolve_budget_category(scope: str, category_text: str) -> str | None:
     return category
 
 
-def _metric_card(label: str, value: str, delta: str | None = None, color: str = "") -> None:
-    """渲染一个带色彩的 metric 卡片，color 可选 'income' / 'expense' / ''。"""
-    wrapper_class = f"metric-{color}" if color else ""
-    st.markdown(f'<div class="{wrapper_class}">', unsafe_allow_html=True)
-    if delta is not None:
-        st.metric(label, value, delta=delta, delta_color="normal")
-    else:
-        st.metric(label, value)
-    st.markdown("</div>", unsafe_allow_html=True)
+def format_money(value: float) -> str:
+    """格式化金额展示文本。"""
+    return f"¥ {value:,.2f}"
+
+
+def safe_text(value: object) -> str:
+    """转义插入 HTML 片段的展示文本。"""
+    return escape(str(value))
+
+
+def render_page_heading(title: str, description: str, eyebrow: str = "MoneyScope") -> None:
+    """渲染页面标题区。"""
+    st.markdown(
+        f"""
+        <div class="page-heading">
+            <div class="page-eyebrow">{safe_text(eyebrow)}</div>
+            <h1>{safe_text(title)}</h1>
+            <p>{safe_text(description)}</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_section_heading(title: str, caption: str = "") -> None:
+    """渲染内容区标题。"""
+    caption_html = f"<span>{safe_text(caption)}</span>" if caption else ""
+    st.markdown(
+        f"""
+        <div class="section-heading">
+            <h3>{safe_text(title)}</h3>
+            {caption_html}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_empty_state(
+    icon: str,
+    title: str,
+    description: str,
+    button_text: str | None = None,
+    variant: str = "",
+) -> None:
+    """渲染小型空状态卡片，可选展示引导按钮文案。"""
+    variant_class = f" {safe_text(variant)}" if variant else ""
+    button_html = (
+        f'<div class="empty-state-action">{safe_text(button_text)}</div>'
+        if button_text
+        else ""
+    )
+    st.markdown(
+        (
+            f'<div class="empty-state-card{variant_class}">'
+            f'<div class="empty-state-icon">{safe_text(icon)}</div>'
+            '<div>'
+            f'<div class="empty-state-title">{safe_text(title)}</div>'
+            f'<p class="empty-state-description">{safe_text(description)}</p>'
+            f'{button_html}'
+            '</div>'
+            '</div>'
+        ),
+        unsafe_allow_html=True,
+    )
+
+
+def metric_card(label: str, value: str, note: str, icon: str, variant: str) -> str:
+    """返回指标卡片 HTML。"""
+    return (
+        f'<div class="metric-card {variant}">'
+        '<div class="metric-card-top">'
+        f'<div class="metric-label">{safe_text(label)}</div>'
+        f'<div class="metric-icon">{safe_text(icon)}</div>'
+        '</div>'
+        f'<div class="metric-value">{safe_text(value)}</div>'
+        f'<div class="metric-note">{safe_text(note)}</div>'
+        '</div>'
+    )
+
+
+def render_metric_cards(income: float, expense: float, balance: float) -> None:
+    """渲染首页三张核心指标卡片。"""
+    balance_note = "本月有结余" if balance >= 0 else "本月支出超过收入"
+    st.markdown(
+        (
+            '<div class="metric-grid">'
+            f'{metric_card("总收入", format_money(income), "本月累计收入", "↑", "income")}'
+            f'{metric_card("总支出", format_money(expense), "本月累计支出", "↓", "expense")}'
+            f'{metric_card("结余", format_money(balance), balance_note, "=", "balance")}'
+            '</div>'
+        ),
+        unsafe_allow_html=True,
+    )
+
+
+def format_transaction_option(row: dict[str, object]) -> str:
+    """把交易记录格式化为删除下拉框中的可读选项。"""
+    type_value = str(row["type"])
+    type_label = TYPE_VALUE_TO_LABEL.get(type_value, type_value)
+    description_text = "" if row.get("description") is None else str(row["description"]).strip()
+    description = f" · {description_text}" if description_text else ""
+    return (
+        f"#{int(row['id'])} · {row['date']} · {type_label} · "
+        f"{row['category']} · ¥ {float(row['amount']):,.2f}{description}"
+    )
+
+
+def render_delete_record_preview(row: dict[str, object]) -> None:
+    """渲染待删除记录确认卡片。"""
+    type_value = str(row["type"])
+    type_label = TYPE_VALUE_TO_LABEL.get(type_value, type_value)
+    description_text = "" if row.get("description") is None else str(row["description"]).strip()
+    description = description_text if description_text else "无备注"
+    st.markdown(
+        (
+            '<div class="delete-record-card">'
+            f'<div class="delete-record-id">#{int(row["id"])}</div>'
+            '<div>'
+            f'<div class="delete-record-main">{safe_text(row["date"])} · '
+            f'{safe_text(type_label)} · {safe_text(row["category"])}</div>'
+            f'<div class="delete-record-sub">备注：{safe_text(description)} · '
+            f'创建时间：{safe_text(row["created_at"])}</div>'
+            '</div>'
+            f'<div class="delete-record-amount">¥ {float(row["amount"]):,.2f}</div>'
+            '</div>'
+        ),
+        unsafe_allow_html=True,
+    )
 
 
 # ---------- 页面渲染函数 ----------
@@ -159,42 +653,76 @@ def _metric_card(label: str, value: str, delta: str | None = None, color: str = 
 
 def render_overview(month: str) -> None:
     """概览页：收支摘要卡片 + 图表双列 + 预算提醒。"""
-    st.header(f"📊 {month} 收支概览")
+    render_page_heading(
+        "个人财务仪表盘",
+        "集中查看本月收入、支出、结余、分类结构和每日趋势，快速判断消费状态。",
+        eyebrow=f"{month} 收支概览",
+    )
 
     summary = get_monthly_summary(month)
     income  = summary["income"]
     expense = summary["expense"]
     balance = summary["balance"]
+    warnings = check_budget_warnings(month)
+    transactions = list_transactions(month=month)
+    category_summary = get_category_expense_summary(month)
+    daily_trend = get_daily_trend(month)
 
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        _metric_card("💚 总收入", f"¥ {income:,.2f}", color="income")
-    with c2:
-        _metric_card("❤️ 总支出", f"¥ {expense:,.2f}", color="expense")
-    with c3:
-        delta_str = f"{balance:+,.2f}"
-        _metric_card("💰 结余", f"¥ {balance:,.2f}", delta=delta_str)
+    transaction_count = len(transactions)
+    expense_count = int((transactions["type"] == "expense").sum()) if not transactions.empty else 0
+    top_category = "暂无支出"
+    if not category_summary.empty:
+        top = category_summary.iloc[0]
+        top_category = f"{safe_text(top['category'])} · {format_money(float(top['amount']))}"
+    savings_rate = f"{balance / income * 100:.1f}%" if income else "暂无收入"
+
+    st.markdown(
+        f"""
+        <div class="dashboard-strip">
+            <div class="dashboard-chip"><span>本月交易</span><strong>{transaction_count} 笔</strong></div>
+            <div class="dashboard-chip"><span>支出笔数</span><strong>{expense_count} 笔</strong></div>
+            <div class="dashboard-chip"><span>最高支出分类</span><strong>{top_category}</strong></div>
+            <div class="dashboard-chip"><span>结余率</span><strong>{savings_rate}</strong></div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    render_metric_cards(income, expense, balance)
+
+    if transactions.empty:
+        render_empty_state(
+            "✨",
+            "欢迎开始使用 MoneyScope",
+            "当前月份还没有交易数据。你可以先添加第一笔收入或支出，也可以通过 CSV 导入已有记录，首页会自动生成分析看板。",
+            "添加第一笔记录 / 导入 CSV",
+        )
 
     # 预算提醒横条
-    warnings = check_budget_warnings(month)
+    render_section_heading("预算提醒", "超过 80% 或已超预算时会提示")
     if warnings:
-        st.divider()
         for msg in warnings:
             icon = "🔴" if "已超过" in msg else "🟡"
             st.warning(f"{icon} {msg}")
     else:
-        st.divider()
-        st.success("✅ 本月暂无预算提醒，消费在控制中。")
+        render_empty_state(
+            "✓",
+            "预算状态良好",
+            "当前没有触发预算提醒。设置预算后，系统会在支出接近或超过预算时提示你。",
+            variant="success compact",
+        )
 
     # 图表双列
-    st.divider()
-    category_summary = get_category_expense_summary(month)
-    daily_trend = get_daily_trend(month)
-
-    left, right = st.columns(2)
+    render_section_heading("图表分析", "分类结构与每日收支变化")
+    left, right = st.columns([1, 1.35])
     with left:
         if category_summary.empty:
-            st.info("📭 该月暂无支出，分类图表待生成。")
+            render_empty_state(
+                "◔",
+                "暂无分类支出",
+                "添加支出记录后，这里会显示各分类的支出占比。",
+                variant="compact",
+            )
         else:
             st.plotly_chart(
                 create_category_pie_chart(category_summary),
@@ -202,17 +730,46 @@ def render_overview(month: str) -> None:
             )
     with right:
         if daily_trend[["income", "expense"]].to_numpy().sum() == 0:
-            st.info("📭 该月暂无交易，趋势图待生成。")
+            render_empty_state(
+                "⌁",
+                "暂无收支趋势",
+                "添加收入或支出后，这里会生成每日收支变化曲线。",
+                variant="compact",
+            )
         else:
             st.plotly_chart(
                 create_daily_trend_chart(daily_trend, month),
                 use_container_width=True,
             )
 
+    render_section_heading("最近交易", "展示本月最新 6 条记录")
+    if transactions.empty:
+        render_empty_state(
+            "＋",
+            "还没有交易记录",
+            "添加收入或支出后，这里会展示最近 6 条记录。",
+            "去侧边栏添加记录",
+            variant="compact",
+        )
+    else:
+        recent = transactions.head(6).copy()
+        recent["type"] = recent["type"].map(TYPE_VALUE_TO_LABEL)
+        st.dataframe(
+            recent,
+            hide_index=True,
+            use_container_width=True,
+            height=260,
+            column_config=TRANSACTION_COLUMN_CONFIG,
+        )
+
 
 def render_add_transaction() -> None:
     """添加记录页：类型/分类联动在 form 外，表单提交后清空。"""
-    st.header("✏️ 添加交易记录")
+    render_page_heading(
+        "添加交易记录",
+        "记录新的收入或支出，保存后会自动同步到概览、分析和预算提醒。",
+        eyebrow="交易录入",
+    )
 
     col_type, col_cat = st.columns([1, 2])
     with col_type:
@@ -261,7 +818,11 @@ def render_add_transaction() -> None:
 
 def render_transaction_list() -> None:
     """交易明细页：筛选 + 数据表 + 删除。"""
-    st.header("📋 交易明细")
+    render_page_heading(
+        "交易明细",
+        "按月份、类型和分类筛选流水，快速核对每一笔收入与支出。",
+        eyebrow="明细管理",
+    )
 
     with st.expander("🔍 筛选条件", expanded=True):
         col_m, col_t, col_c = st.columns(3)
@@ -282,24 +843,76 @@ def render_transaction_list() -> None:
     if rows.empty:
         st.info("📭 暂无符合条件的交易记录。")
     else:
+        render_section_heading("筛选结果", f"共 {len(rows)} 条记录")
         display = rows.copy()
         display["type"] = display["type"].map(TYPE_VALUE_TO_LABEL)
         st.dataframe(
             display,
             hide_index=True,
             use_container_width=True,
+            height=420,
             column_config=TRANSACTION_COLUMN_CONFIG,
         )
-        st.caption(f"共 {len(display)} 条记录")
 
-    st.divider()
-    st.subheader("🗑️ 删除记录")
-    col_id, col_btn = st.columns([3, 1], vertical_alignment="bottom")
-    delete_id = col_id.number_input("要删除的记录编号", min_value=0, step=1, value=0)
-    if col_btn.button("删除", use_container_width=True, type="primary"):
+    render_section_heading("删除记录", "点错时可从当前筛选结果中选择一条删除")
+    if rows.empty:
+        render_empty_state(
+            "⌫",
+            "没有可删除的记录",
+            "当前筛选结果为空。调整筛选条件后，可以在这里选择要删除的交易。",
+            variant="compact",
+        )
+        selected_delete_id = 0
+    else:
+        records = rows.to_dict("records")
+        delete_options = {format_transaction_option(row): row for row in records}
+        st.markdown(
+            (
+                '<div class="delete-panel-head">'
+                '<div class="delete-panel-title">删除前请确认记录信息</div>'
+                '<div class="delete-panel-note">只会删除当前选择的一条交易</div>'
+                '</div>'
+            ),
+            unsafe_allow_html=True,
+        )
+        selected_label = st.selectbox(
+            "选择要删除的记录",
+            list(delete_options.keys()),
+            help="下拉列表只显示当前筛选结果中的记录，避免误删其他月份的数据。",
+            key="delete_record_select",
+        )
+        selected_record = delete_options[selected_label]
+        selected_delete_id = int(selected_record["id"])
+        render_delete_record_preview(selected_record)
+
+    col_tip, col_btn = st.columns([3, 1], vertical_alignment="center")
+    with col_tip:
+        st.caption("删除后编号会自动重新排列，表格不会留下跳号。")
+    delete_clicked = col_btn.button(
+        "删除所选记录",
+        use_container_width=True,
+        type="primary",
+        disabled=selected_delete_id <= 0,
+    )
+
+    manual_delete_id = 0
+    with st.expander("找不到记录？手动输入编号", expanded=False):
+        manual_delete_id = st.number_input(
+            "记录编号",
+            min_value=0,
+            step=1,
+            value=0,
+            help="通常使用上方下拉选择即可。只有在筛选结果里找不到记录时，才需要手动输入编号。",
+        )
+        manual_delete_clicked = st.button("按编号删除", use_container_width=True)
+
+    if delete_clicked or manual_delete_clicked:
         try:
-            if delete_transaction(int(delete_id)):
-                st.toast(f"🗑️ 已删除记录 {int(delete_id)}", icon="🗑️")
+            target_id = int(manual_delete_id) if manual_delete_clicked else int(selected_delete_id)
+            if target_id <= 0:
+                st.warning("⚠️ 请先选择或输入要删除的记录编号。")
+            elif delete_transaction(target_id):
+                st.toast(f"🗑️ 已删除记录 {target_id}", icon="🗑️")
                 st.rerun()
             else:
                 st.warning("⚠️ 未找到对应记录，请确认编号是否正确。")
@@ -309,14 +922,18 @@ def render_transaction_list() -> None:
 
 def render_analysis(month: str) -> None:
     """统计分析页：分类饼图与每日趋势图并排展示。"""
-    st.header(f"📈 {month} 统计分析")
+    render_page_heading(
+        f"{month} 统计分析",
+        "从支出分类和每日趋势中观察消费结构，辅助做预算和复盘。",
+        eyebrow="数据分析",
+    )
 
     category_summary = get_category_expense_summary(month)
     daily_trend      = get_daily_trend(month)
 
-    left, right = st.columns(2)
+    render_section_heading("核心图表", "分类支出占比与每日收支趋势")
+    left, right = st.columns([1, 1.35])
     with left:
-        st.subheader("分类支出占比")
         if category_summary.empty:
             st.info("📭 该月暂无支出记录。")
         else:
@@ -325,7 +942,6 @@ def render_analysis(month: str) -> None:
                 use_container_width=True,
             )
     with right:
-        st.subheader("每日收支趋势")
         if daily_trend[["income", "expense"]].to_numpy().sum() == 0:
             st.info("📭 该月暂无交易记录。")
         else:
@@ -336,8 +952,7 @@ def render_analysis(month: str) -> None:
 
     # 分类支出明细表
     if not category_summary.empty:
-        st.divider()
-        st.subheader("分类支出明细")
+        render_section_heading("分类支出明细", "按金额从高到低排序")
         total = category_summary["amount"].sum()
         display = category_summary.copy()
         display["占比"] = (display["amount"] / total * 100).map("{:.1f}%".format)
@@ -347,12 +962,16 @@ def render_analysis(month: str) -> None:
 
 def render_budget(month: str) -> None:
     """预算设置页：表单 + 当月提醒。"""
-    st.header("🎯 预算设置")
+    render_page_heading(
+        "预算设置",
+        "设置月度总预算或分类预算，系统会根据支出情况给出提醒。",
+        eyebrow="预算管理",
+    )
 
     col_form, col_warn = st.columns([1, 1])
 
     with col_form:
-        st.subheader("设置预算")
+        render_section_heading("设置预算")
         with st.form("budget_form", clear_on_submit=True):
             budget_month    = st.text_input("预算月份（YYYY-MM）", value=month)
             scope           = st.selectbox("预算范围", ["月度总预算", "分类预算"])
@@ -370,7 +989,7 @@ def render_budget(month: str) -> None:
                 st.error(f"⚠️ {exc}")
 
     with col_warn:
-        st.subheader(f"{month} 预算提醒")
+        render_section_heading(f"{month} 预算提醒")
         warnings = check_budget_warnings(month)
         if warnings:
             for msg in warnings:
@@ -382,12 +1001,16 @@ def render_budget(month: str) -> None:
 
 def render_csv() -> None:
     """导入导出页：上传 CSV 导入，下载全量或筛选后数据。"""
-    st.header("📂 导入与导出")
+    render_page_heading(
+        "导入与导出",
+        "通过 CSV 批量导入或备份交易记录，便于课程展示和数据迁移。",
+        eyebrow="CSV 工具",
+    )
 
     left, right = st.columns(2)
 
     with left:
-        st.subheader("📥 导入 CSV")
+        render_section_heading("导入 CSV")
         st.caption("字段顺序：`date, type, category, amount, description`")
         uploaded = st.file_uploader("选择 CSV 文件", type=["csv"], label_visibility="collapsed")
         if uploaded is not None:
@@ -398,7 +1021,7 @@ def render_csv() -> None:
                     st.error(err)
 
     with right:
-        st.subheader("📤 导出 CSV")
+        render_section_heading("导出 CSV")
         st.caption("导出全部交易记录，Excel 可直接打开（UTF-8 BOM）。")
         st.download_button(
             label="⬇️ 下载全部交易记录",
@@ -424,8 +1047,15 @@ def main() -> None:
 
     # ---- 侧边栏 ----
     with st.sidebar:
-        st.markdown("## 💰 MoneyScope")
-        st.caption("个人消费记录与数据分析")
+        st.markdown(
+            """
+            <div class="sidebar-brand">
+                <div class="sidebar-brand-title">MoneyScope</div>
+                <div class="sidebar-brand-subtitle">个人消费记录与数据分析</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
         st.divider()
 
         # 月份选择器（下拉最近 13 个月）
