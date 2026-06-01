@@ -73,19 +73,33 @@ _CSS = """
 /* 隐藏 Streamlit 自带英文工具栏和菜单，保留项目自己的中文界面 */
 #MainMenu,
 footer,
-[data-testid="stToolbar"],
 [data-testid="stDecoration"],
 [data-testid="stStatusWidget"],
-[data-testid="stDeployButton"],
-[data-testid="baseButton-headerNoPadding"],
-header [data-testid="stToolbar"] {
+[data-testid="stDeployButton"] {
     display: none !important;
     visibility: hidden !important;
 }
 
+/* 工具栏折叠为零高度隐藏，但不影响子元素中的展开按钮 */
+[data-testid="stToolbar"] {
+    height: 0 !important;
+    overflow: visible !important;
+}
+
 header {
     background: transparent !important;
-    height: 0 !important;
+}
+
+/* 侧边栏展开按钮脱离工具栏限制，始终可见可点击 */
+[data-testid="stExpandSidebarButton"] {
+    position: fixed !important;
+    top: 0.5rem !important;
+    left: 0.5rem !important;
+    z-index: 999999 !important;
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
 }
 
 .block-container {
