@@ -390,3 +390,59 @@
 - 反思与收获：
   - 演示数据库应覆盖功能的边界场景，而不只是正常数据，这样答辩时能更全面地展示系统能力。
   - 用脚本生成数据库比手动操作 SQLite 更可重复、可维护。
+
+## 记录 016：将界面 emoji 替换为 SVG/Unicode 图标
+
+- 日期：2026-06-01
+- 使用工具：Claude Code
+- 使用场景：用户反馈界面中的 emoji 图标廉价，希望换成更美观的图标。
+- 原始提示词：
+
+```text
+请帮我把一些廉价的emoji换成美观的icon图标
+```
+
+- AI 输出摘要：
+  - 在 `app/main.py` 常量区新增 `_SVG` 字典，收录 11 个 stroke 风格 SVG 图标（箭头、对勾、饼图、折线、加号、垃圾桶、红色/黄色警告）。
+  - 导航菜单 `NAV_ITEMS` 的 emoji 替换为精致 Unicode 符号（▣ ✎ ≡ ∿ ◎ ⇅）。
+  - `metric_card` 的 ↑ ↓ = 替换为 SVG 上箭头、下箭头、等号，`metric-icon` 的 `font-size` 改为 0 避免字体渲染干扰。
+  - `render_empty_state` 的所有 emoji 替换为对应 SVG，`empty-state-icon` 同步调整 CSS。
+  - 预算提醒的 🔴🟡 替换为红色圆形警告 SVG 和黄色三角警告 SVG，内嵌在 `st.warning` 文字中。
+  - `page_icon` 从 💰 改为 `$`，`st.info` 的 📭 前缀直接删除。
+  - 按钮和 toast 中的 💾 🗑️ ✅ 🚀 ⬇️ ⚠️ 保留，属于原生组件文字，视觉上不突兀。
+- 人工修改说明：
+  - 无额外人工修改。
+- 修改原因：
+  - emoji 在不同操作系统和浏览器下渲染差异大，stroke SVG 风格统一、清晰，与整体设计语言更一致。
+- 反思与收获：
+  - 自定义 HTML 区域可以完全控制图标，但 Streamlit 原生组件（`st.radio` 标签、`st.button` 文字）只支持纯文本，需要区分处理。
+  - SVG 图标需要在父容器设置 `font-size: 0` 消除行高影响，并确保 `currentColor` 能正确继承父元素颜色。
+
+## 记录 017：将侧边栏导航从 st.radio 改为 st.button
+
+- 日期：2026-06-01
+- 使用工具：Claude Code
+- 使用场景：侧边栏导航每个选项的点击横向区域过小，多次调整 radio CSS 无效，改用 st.button 实现导航。
+- 原始提示词：
+
+```text
+现在左侧导航每一个选项的点击横向区域过小，请调整
+```
+
+- AI 输出摘要：
+  - 第一轮：尝试在 `[data-testid="stRadio"]` 的各层 div 上补 `width: 100%`，无效。
+  - 第二轮：加 `display: flex; flex-direction: column; align-items: stretch` 和 `> div > div { width: 100% }`，仍无效。
+  - 根因分析：Streamlit radio 的 DOM 结构不透明，CSS 无法可靠控制每个选项的宽度，继续猜结构效率极低。
+  - 最终方案：将导航从 `st.radio` 改为 `st.button` 循环，每个按钮设 `use_container_width=True`，天然全宽。
+  - 用 `st.session_state.page` 记录当前页，选中的按钮用 `type="primary"`，CSS 覆盖为浅蓝灰高亮，未选中保持透明背景。
+  - 全局 button 样式限定在 `[data-testid="stSidebar"]` 内，不影响主内容区的保存/删除等按钮。
+- 人工修改说明：
+  - 无额外人工修改。
+- 修改原因：
+  - Streamlit 的 radio 组件内部 DOM 层级多且不稳定，CSS 覆盖需要猜测结构，维护成本高。
+  - st.button 的宽度行为完全可控，是更可靠的导航实现方式。
+- 反思与收获：
+  - 对 Streamlit 原生组件做深度 CSS 定制时，应先通过浏览器 DevTools 确认真实 DOM 结构，而不是反复猜测。
+  - 当 CSS 方案两次尝试仍无效时，应果断换实现方案，而不是继续堆 CSS。
+  - st.button + session_state 是 Streamlit 中实现自定义导航的标准模式，比 radio 更灵活。
+

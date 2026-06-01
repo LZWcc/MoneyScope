@@ -39,17 +39,102 @@ from app.utils import parse_month
 # ---------- 常量 ----------
 
 TYPE_LABEL_TO_VALUE = {"收入": "income", "支出": "expense"}
+
+# SVG 图标（stroke 风格，24×24 viewBox，用于自定义 HTML 区域）
+_SVG = {
+    # metric-card 图标
+    "arrow_up": (
+        '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" '
+        'fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">'
+        '<line x1="12" y1="19" x2="12" y2="5"/>'
+        '<polyline points="5 12 12 5 19 12"/>'
+        '</svg>'
+    ),
+    "arrow_down": (
+        '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" '
+        'fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">'
+        '<line x1="12" y1="5" x2="12" y2="19"/>'
+        '<polyline points="19 12 12 19 5 12"/>'
+        '</svg>'
+    ),
+    "equals": (
+        '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" '
+        'fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">'
+        '<line x1="5" y1="9" x2="19" y2="9"/>'
+        '<line x1="5" y1="15" x2="19" y2="15"/>'
+        '</svg>'
+    ),
+    # empty-state 图标
+    "sparkle": (
+        '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" '
+        'fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+        '<path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/>'
+        '</svg>'
+    ),
+    "check": (
+        '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" '
+        'fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">'
+        '<polyline points="20 6 9 17 4 12"/>'
+        '</svg>'
+    ),
+    "pie_chart": (
+        '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" '
+        'fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+        '<path d="M21.21 15.89A10 10 0 1 1 8 2.83"/>'
+        '<path d="M22 12A10 10 0 0 0 12 2v10z"/>'
+        '</svg>'
+    ),
+    "activity": (
+        '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" '
+        'fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+        '<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>'
+        '</svg>'
+    ),
+    "plus": (
+        '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" '
+        'fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">'
+        '<line x1="12" y1="5" x2="12" y2="19"/>'
+        '<line x1="5" y1="12" x2="19" y2="12"/>'
+        '</svg>'
+    ),
+    "delete": (
+        '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" '
+        'fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+        '<polyline points="3 6 5 6 21 6"/>'
+        '<path d="M19 6l-1 14H6L5 6"/>'
+        '<path d="M10 11v6"/><path d="M14 11v6"/>'
+        '<path d="M9 6V4h6v2"/>'
+        '</svg>'
+    ),
+    # 预算提醒
+    "alert_red": (
+        '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" '
+        'fill="none" stroke="#dc2626" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">'
+        '<circle cx="12" cy="12" r="10"/>'
+        '<line x1="12" y1="8" x2="12" y2="12"/>'
+        '<line x1="12" y1="16" x2="12.01" y2="16"/>'
+        '</svg>'
+    ),
+    "alert_yellow": (
+        '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" '
+        'fill="none" stroke="#d97706" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">'
+        '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>'
+        '<line x1="12" y1="9" x2="12" y2="13"/>'
+        '<line x1="12" y1="17" x2="12.01" y2="17"/>'
+        '</svg>'
+    ),
+}
 TYPE_VALUE_TO_LABEL = {"income": "收入", "expense": "支出"}
 CUSTOM_CATEGORY_OPTION = "其他（自定义）"
 
 # 导航菜单：显示名称 → 内部 key
 NAV_ITEMS = {
-    "📊  概览":     "overview",
-    "✏️  添加记录":  "add",
-    "📋  交易明细":  "list",
-    "📈  统计分析":  "analysis",
-    "🎯  预算设置":  "budget",
-    "📂  导入导出":  "csv",
+    "▣  概览":      "overview",
+    "✎  添加记录":  "add",
+    "≡  交易明细":  "list",
+    "∿  统计分析":  "analysis",
+    "◎  预算设置":  "budget",
+    "⇅  导入导出":  "csv",
 }
 
 TRANSACTION_COLUMN_CONFIG = {
@@ -238,8 +323,13 @@ header {
     align-items: center;
     justify-content: center;
     border-radius: 12px;
-    font-size: 1rem;
+    font-size: 0;
     background: #f1f5f9;
+}
+
+.metric-icon svg {
+    display: block;
+    flex-shrink: 0;
 }
 
 .metric-value {
@@ -315,7 +405,12 @@ header {
     justify-content: center;
     background: #eff6ff;
     color: #2563eb;
-    font-size: 1.05rem;
+    font-size: 0;
+}
+
+.empty-state-icon svg {
+    display: block;
+    flex-shrink: 0;
 }
 
 .empty-state-card.success .empty-state-icon {
@@ -460,32 +555,46 @@ header {
     color: #ffffff !important;
 }
 
-/* 侧边栏 radio 导航：隐藏圆点，做成按钮列表 */
-[data-testid="stSidebar"] [data-testid="stRadio"] > div {
-    gap: 6px;
+/* 侧边栏导航按钮 */
+[data-testid="stSidebar"] .stButton {
     width: 100%;
-}
-[data-testid="stSidebar"] [data-testid="stRadio"] input[type="radio"] {
-    display: none;
-}
-[data-testid="stSidebar"] [data-testid="stRadio"] label {
-    display: flex !important;
-    align-items: center;
-    justify-content: flex-start;
-    width: 100%;
-    padding: 11px 14px;
-    border-radius: 12px;
-    cursor: pointer;
-    transition: background 0.15s, transform 0.15s;
-    font-size: 0.95rem;
-    font-weight: 650;
-    color: #374151;
-    border: 1px solid transparent;
     margin-bottom: 2px;
 }
-[data-testid="stSidebar"] [data-testid="stRadio"] label:hover {
-    background: #eef2f7;
+[data-testid="stSidebar"] .stButton > button {
+    display: flex !important;
+    align-items: center;
+    justify-content: flex-start !important;
+    width: 100% !important;
+    box-sizing: border-box;
+    padding: 11px 14px !important;
+    border-radius: 12px !important;
+    font-size: 0.95rem !important;
+    font-weight: 650 !important;
+    color: #374151 !important;
+    background: transparent !important;
+    border: 1px solid transparent !important;
+    box-shadow: none !important;
+    min-height: unset !important;
+    transition: background 0.15s, transform 0.15s;
+}
+[data-testid="stSidebar"] .stButton > button:hover {
+    background: #eef2f7 !important;
     transform: translateX(2px);
+    border-color: transparent !important;
+}
+/* 选中态：primary 按钮在侧边栏显示为高亮导航项 */
+[data-testid="stSidebar"] .stButton > button[kind="primary"] {
+    background: #e8edf5 !important;
+    color: #0f172a !important;
+    font-weight: 750 !important;
+    border-color: #dbe4ef !important;
+}
+[data-testid="stSidebar"] .stButton > button[kind="primary"]:hover {
+    background: #dde4f0 !important;
+}
+[data-testid="stSidebar"] .stButton > button:focus:not(:active) {
+    box-shadow: none !important;
+    border-color: transparent !important;
 }
 
 @media (max-width: 900px) {
@@ -576,7 +685,7 @@ def render_empty_state(
     button_text: str | None = None,
     variant: str = "",
 ) -> None:
-    """渲染小型空状态卡片，可选展示引导按钮文案。"""
+    """渲染小型空状态卡片，可选展示引导按钮文案。icon 为原始 SVG 或 Unicode 字符串。"""
     variant_class = f" {safe_text(variant)}" if variant else ""
     button_html = (
         f'<div class="empty-state-action">{safe_text(button_text)}</div>'
@@ -586,7 +695,7 @@ def render_empty_state(
     st.markdown(
         (
             f'<div class="empty-state-card{variant_class}">'
-            f'<div class="empty-state-icon">{safe_text(icon)}</div>'
+            f'<div class="empty-state-icon">{icon}</div>'
             '<div>'
             f'<div class="empty-state-title">{safe_text(title)}</div>'
             f'<p class="empty-state-description">{safe_text(description)}</p>'
@@ -598,13 +707,13 @@ def render_empty_state(
     )
 
 
-def metric_card(label: str, value: str, note: str, icon: str, variant: str) -> str:
-    """返回指标卡片 HTML。"""
+def metric_card(label: str, value: str, note: str, icon_svg: str, variant: str) -> str:
+    """返回指标卡片 HTML。icon_svg 为原始 SVG 字符串，不做 HTML 转义。"""
     return (
         f'<div class="metric-card {variant}">'
         '<div class="metric-card-top">'
         f'<div class="metric-label">{safe_text(label)}</div>'
-        f'<div class="metric-icon">{safe_text(icon)}</div>'
+        f'<div class="metric-icon">{icon_svg}</div>'
         '</div>'
         f'<div class="metric-value">{safe_text(value)}</div>'
         f'<div class="metric-note">{safe_text(note)}</div>'
@@ -618,9 +727,9 @@ def render_metric_cards(income: float, expense: float, balance: float) -> None:
     st.markdown(
         (
             '<div class="metric-grid">'
-            f'{metric_card("总收入", format_money(income), "本月累计收入", "↑", "income")}'
-            f'{metric_card("总支出", format_money(expense), "本月累计支出", "↓", "expense")}'
-            f'{metric_card("结余", format_money(balance), balance_note, "=", "balance")}'
+            f'{metric_card("总收入", format_money(income), "本月累计收入", _SVG["arrow_up"], "income")}'
+            f'{metric_card("总支出", format_money(expense), "本月累计支出", _SVG["arrow_down"], "expense")}'
+            f'{metric_card("结余", format_money(balance), balance_note, _SVG["equals"], "balance")}'
             '</div>'
         ),
         unsafe_allow_html=True,
@@ -706,7 +815,7 @@ def render_overview(month: str) -> None:
 
     if transactions.empty:
         render_empty_state(
-            "✨",
+            _SVG["sparkle"],
             "欢迎开始使用 MoneyScope",
             "当前月份还没有交易数据。你可以先添加第一笔收入或支出，也可以通过 CSV 导入已有记录，首页会自动生成分析看板。",
             "添加第一笔记录 / 导入 CSV",
@@ -716,11 +825,11 @@ def render_overview(month: str) -> None:
     render_section_heading("预算提醒", "超过 80% 或已超预算时会提示")
     if warnings:
         for msg in warnings:
-            icon = "🔴" if "已超过" in msg else "🟡"
-            st.warning(f"{icon} {msg}")
+            svg_icon = _SVG["alert_red"] if "已超过" in msg else _SVG["alert_yellow"]
+            st.warning(f"{svg_icon} {msg}", icon=None)
     else:
         render_empty_state(
-            "✓",
+            _SVG["check"],
             "预算状态良好",
             "当前没有触发预算提醒。设置预算后，系统会在支出接近或超过预算时提示你。",
             variant="success compact",
@@ -732,7 +841,7 @@ def render_overview(month: str) -> None:
     with left:
         if category_summary.empty:
             render_empty_state(
-                "◔",
+                _SVG["pie_chart"],
                 "暂无分类支出",
                 "添加支出记录后，这里会显示各分类的支出占比。",
                 variant="compact",
@@ -745,7 +854,7 @@ def render_overview(month: str) -> None:
     with right:
         if daily_trend[["income", "expense"]].to_numpy().sum() == 0:
             render_empty_state(
-                "⌁",
+                _SVG["activity"],
                 "暂无收支趋势",
                 "添加收入或支出后，这里会生成每日收支变化曲线。",
                 variant="compact",
@@ -759,7 +868,7 @@ def render_overview(month: str) -> None:
     render_section_heading("最近交易", "展示本月最新 6 条记录")
     if transactions.empty:
         render_empty_state(
-            "＋",
+            _SVG["plus"],
             "还没有交易记录",
             "添加收入或支出后，这里会展示最近 6 条记录。",
             "去侧边栏添加记录",
@@ -838,7 +947,7 @@ def render_transaction_list() -> None:
         eyebrow="明细管理",
     )
 
-    with st.expander("🔍 筛选条件", expanded=True):
+    with st.expander("筛选条件", expanded=True):
         col_m, col_t, col_c = st.columns(3)
         month_filter    = col_m.text_input("月份（YYYY-MM，留空=全部）", value="")
         type_label      = col_t.selectbox("类型", ["全部", "收入", "支出"])
@@ -855,7 +964,7 @@ def render_transaction_list() -> None:
         return
 
     if rows.empty:
-        st.info("📭 暂无符合条件的交易记录。")
+        st.info("暂无符合条件的交易记录。")
     else:
         render_section_heading("筛选结果", f"共 {len(rows)} 条记录")
         display = rows.copy()
@@ -871,7 +980,7 @@ def render_transaction_list() -> None:
     render_section_heading("删除记录", "点错时可从当前筛选结果中选择一条删除")
     if rows.empty:
         render_empty_state(
-            "⌫",
+            _SVG["delete"],
             "没有可删除的记录",
             "当前筛选结果为空。调整筛选条件后，可以在这里选择要删除的交易。",
             variant="compact",
@@ -949,7 +1058,7 @@ def render_analysis(month: str) -> None:
     left, right = st.columns([1, 1.35])
     with left:
         if category_summary.empty:
-            st.info("📭 该月暂无支出记录。")
+            st.info("该月暂无支出记录。")
         else:
             st.plotly_chart(
                 create_category_pie_chart(category_summary),
@@ -957,7 +1066,7 @@ def render_analysis(month: str) -> None:
             )
     with right:
         if daily_trend[["income", "expense"]].to_numpy().sum() == 0:
-            st.info("📭 该月暂无交易记录。")
+            st.info("该月暂无交易记录。")
         else:
             st.plotly_chart(
                 create_daily_trend_chart(daily_trend, month),
@@ -1007,8 +1116,8 @@ def render_budget(month: str) -> None:
         warnings = check_budget_warnings(month)
         if warnings:
             for msg in warnings:
-                icon = "🔴" if "已超过" in msg else "🟡"
-                st.warning(f"{icon} {msg}")
+                svg_icon = _SVG["alert_red"] if "已超过" in msg else _SVG["alert_yellow"]
+                st.warning(f"{svg_icon} {msg}", icon=None)
         else:
             st.success("✅ 当前没有预算提醒。")
 
@@ -1053,7 +1162,7 @@ def main() -> None:
     """渲染 MoneyScope 主页面（侧边栏导航版）。"""
     st.set_page_config(
         page_title="MoneyScope",
-        page_icon="💰",
+        page_icon="$",
         layout="wide",
         initial_sidebar_state="expanded",
     )
@@ -1075,20 +1184,30 @@ def main() -> None:
         # 月份选择器（下拉最近 13 个月）
         months = recent_months()
         selected_month = st.selectbox(
-            "📅 查看月份",
+            "查看月份",
             months,
             index=0,
         )
 
         st.divider()
 
-        # 导航菜单
-        nav_label = st.radio(
-            "导航",
-            list(NAV_ITEMS.keys()),
-            label_visibility="collapsed",
-        )
-        page = NAV_ITEMS[nav_label]
+        # 导航菜单（用 button 实现，避免 radio DOM 结构不可控）
+        if "page" not in st.session_state:
+            st.session_state.page = "overview"
+
+        for label, key in NAV_ITEMS.items():
+            is_active = st.session_state.page == key
+            clicked = st.button(
+                label,
+                key=f"nav_{key}",
+                use_container_width=True,
+                type="primary" if is_active else "secondary",
+            )
+            if clicked:
+                st.session_state.page = key
+                st.rerun()
+
+        page = st.session_state.page
 
     # ---- 主内容区 ----
     if page == "overview":
