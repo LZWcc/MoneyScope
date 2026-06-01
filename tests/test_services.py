@@ -11,6 +11,7 @@ import pandas as pd
 import pytest
 
 from app import main as app_main
+from app.components import resolve_budget_category
 from app.charts import create_category_pie_chart, create_daily_trend_chart
 from app.database import initialize_database
 from app.models import Budget, Transaction
@@ -68,7 +69,7 @@ def test_budget_accepts_total_month_budget():
 
 def test_category_budget_requires_category_text():
     with pytest.raises(ValueError, match="分类预算必须填写分类"):
-        app_main.resolve_budget_category("分类预算", "   ")
+        resolve_budget_category("分类预算", "   ")
 
 
 def test_parse_month_rejects_bad_format():
