@@ -106,3 +106,38 @@ def list_categories(
     query += " ORDER BY id"
     with get_connection(db_path) as conn:
         return [row["name"] for row in conn.execute(query, params).fetchall()]
+
+
+def add_category(
+    name: str, type: str, keywords: str = "", db_path: Path | str = DATABASE_PATH
+) -> bool:
+    """添加一个新分类，成功返回 True，已存在返回 False。"""
+    if type not in ("income", "expense"):
+        raise ValueError("类型必须为 income 或 expense")
+    if not name.strip():
+        raise ValueError("分类名称不能为空")
+    initialize_database(db_path)
+    with get_connection(db_path) as conn:
+        try:
+            conn.execute(
+                "INSERT INTO categories (name, type, keywords) VALUES (?, ?, ?)",
+                (name.strip(), type, keywords),
+            )
+            conn.commit()
+            return True
+        except sqlite3.IntegrityError:
+            return False
+
+
+def delete_category(
+    name: str, type: str, db_path: Path | str = DATABASE_PATH
+) -> bool:
+    """按名称和类型删除分类，成功返回 True。"""
+    initialize_database(db_path)
+    with get_connection(db_path) as conn:
+        cursor = conn.execute(
+            "DELETE FROM categories WHERE name = ? AND type = ?",
+            (name, type),
+        )
+        conn.commit()
+        return cursor.rowcount > 0

@@ -251,6 +251,27 @@ def check_budget_warnings(month: str, db_path: Path | str = DATABASE_PATH) -> li
     return warnings
 
 
+def list_budgets(month: str, db_path: Path | str = DATABASE_PATH) -> pd.DataFrame:
+    """返回指定月份的所有预算记录。"""
+    month = parse_month(month)
+    initialize_database(db_path)
+    with get_connection(db_path) as conn:
+        return pd.read_sql_query(
+            "SELECT id, month, category, amount FROM budgets WHERE month = ? ORDER BY id",
+            conn,
+            params=(month,),
+        )
+
+
+def delete_budget(budget_id: int, db_path: Path | str = DATABASE_PATH) -> bool:
+    """按 id 删除预算记录，成功返回 True。"""
+    initialize_database(db_path)
+    with get_connection(db_path) as conn:
+        cursor = conn.execute("DELETE FROM budgets WHERE id = ?", (budget_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+
+
 # ---------- CSV 导入导出 ----------
 
 

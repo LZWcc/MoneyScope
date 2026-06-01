@@ -19,17 +19,19 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import streamlit as st
 
 from app.charts import create_category_pie_chart, create_daily_trend_chart
-from app.database import list_categories
+from app.database import add_category, delete_category, list_categories
 from app.models import Budget, Transaction
 from app.services import (
     add_transaction,
     check_budget_warnings,
+    delete_budget,
     delete_transaction,
     export_transactions_csv,
     get_category_expense_summary,
     get_daily_trend,
     get_monthly_summary,
     import_transactions_csv,
+    list_budgets,
     list_transactions,
     save_budget,
 )
@@ -375,7 +377,6 @@ header {
 
 .empty-state-card {
     min-height: 132px;
-    height: 100%;
     background: rgba(255, 255, 255, 0.78);
     border: 1px solid rgba(226, 232, 240, 0.95);
     border-radius: 16px;
@@ -835,35 +836,40 @@ def render_overview(month: str) -> None:
             variant="success compact",
         )
 
-    # 图表双列
+    # 图表分析（自适应布局：仅双侧都有数据时分列，否则全宽）
     render_section_heading("图表分析", "分类结构与每日收支变化")
-    left, right = st.columns([1, 1.35])
-    with left:
-        if category_summary.empty:
-            render_empty_state(
-                _SVG["pie_chart"],
-                "暂无分类支出",
-                "添加支出记录后，这里会显示各分类的支出占比。",
-                variant="compact",
-            )
-        else:
+    has_category = not category_summary.empty
+    has_trend = daily_trend[["income", "expense"]].to_numpy().sum() > 0
+
+    if has_category and has_trend:
+        left, right = st.columns([1, 1.35])
+        with left:
             st.plotly_chart(
                 create_category_pie_chart(category_summary),
                 use_container_width=True,
             )
-    with right:
-        if daily_trend[["income", "expense"]].to_numpy().sum() == 0:
-            render_empty_state(
-                _SVG["activity"],
-                "暂无收支趋势",
-                "添加收入或支出后，这里会生成每日收支变化曲线。",
-                variant="compact",
-            )
-        else:
+        with right:
             st.plotly_chart(
                 create_daily_trend_chart(daily_trend, month),
                 use_container_width=True,
             )
+    elif has_category:
+        st.plotly_chart(
+            create_category_pie_chart(category_summary),
+            use_container_width=True,
+        )
+    elif has_trend:
+        st.plotly_chart(
+            create_daily_trend_chart(daily_trend, month),
+            use_container_width=True,
+        )
+    else:
+        render_empty_state(
+            _SVG["pie_chart"],
+            "暂无图表数据",
+            "添加收支记录后，这里会显示分类占比和每日趋势图。",
+            variant="compact",
+        )
 
     render_section_heading("最近交易", "展示本月最新 6 条记录")
     if transactions.empty:
@@ -893,6 +899,42 @@ def render_add_transaction() -> None:
         "记录新的收入或支出，保存后会自动同步到概览、分析和预算提醒。",
         eyebrow="交易录入",
     )
+
+    # 快捷记账
+    render_section_heading("快捷记账", "常用场景一键录入，只需填写金额")
+    shortcuts = [
+        ("🍜 餐饮", "expense", "餐饮"),
+        ("🚌 交通", "expense", "交通"),
+        ("🛒 购物", "expense", "购物"),
+        ("💰 工资", "income", "工资"),
+    ]
+    shortcut_cols = st.columns(len(shortcuts))
+    for col, (label, s_type, s_cat) in zip(shortcut_cols, shortcuts):
+        with col:
+            with st.popover(label, use_container_width=True):
+                q_amount = st.number_input(
+                    "金额 (¥)", min_value=0.01, step=0.5, format="%.2f",
+                    key=f"q_{label}_amt",
+                )
+                q_desc = st.text_input(
+                    "备注", placeholder=label.split(" ")[-1], key=f"q_{label}_desc"
+                )
+                if st.button("确认保存", key=f"q_{label}_btn", use_container_width=True):
+                    try:
+                        t = Transaction(
+                            date=date.today(),
+                            type=s_type,
+                            category=s_cat,
+                            amount=q_amount,
+                            description=q_desc or label.split(" ")[-1],
+                        )
+                        add_transaction(t)
+                        st.toast("✅ 已保存", icon="✅")
+                        st.rerun()
+                    except (ValueError, RuntimeError) as exc:
+                        st.error(f"⚠️ {exc}")
+
+    st.divider()
 
     col_type, col_cat = st.columns([1, 2])
     with col_type:
@@ -937,6 +979,59 @@ def render_add_transaction() -> None:
             st.rerun()
         except (ValueError, RuntimeError) as exc:
             st.error(f"⚠️ {exc}")
+
+    # 最近记录
+    render_section_heading("最近记录", "最新 5 条交易")
+    recent = list_transactions()
+    if recent.empty:
+        render_empty_state(
+            _SVG["plus"],
+            "暂无记录",
+            "提交第一笔交易后，这里会显示最近的记录。",
+            variant="compact",
+        )
+    else:
+        display = recent.head(5).copy()
+        display["type"] = display["type"].map(TYPE_VALUE_TO_LABEL)
+        st.dataframe(
+            display[["date", "type", "category", "amount", "description"]],
+            hide_index=True,
+            use_container_width=True,
+            column_config=TRANSACTION_COLUMN_CONFIG,
+        )
+
+    # 分类管理
+    render_section_heading("分类管理", "添加或删除收支分类")
+    col_add, col_del = st.columns(2)
+    with col_add:
+        with st.form("add_category_form", clear_on_submit=True):
+            new_cat_name = st.text_input("新分类名称", placeholder="例如：医疗、快递")
+            new_cat_type = st.selectbox("所属类型", ["支出", "收入"], key="new_cat_type")
+            if st.form_submit_button("➕ 添加分类", use_container_width=True):
+                cat_type_val = "expense" if new_cat_type == "支出" else "income"
+                try:
+                    if add_category(new_cat_name, cat_type_val):
+                        st.toast(f"已添加分类：{new_cat_name}")
+                        st.rerun()
+                    else:
+                        st.warning("该分类已存在")
+                except ValueError as exc:
+                    st.error(f"⚠️ {exc}")
+    with col_del:
+        with st.form("del_category_form"):
+            del_cat_type_label = st.selectbox("查看类型", ["支出", "收入"], key="del_cat_type")
+            del_cat_type_val = "expense" if del_cat_type_label == "支出" else "income"
+            cats = list_categories(del_cat_type_val)
+            if cats:
+                del_cat = st.selectbox("选择要删除的分类", cats, key="del_cat_name")
+            else:
+                del_cat = None
+                st.info("该类型下暂无分类")
+            submitted_del = st.form_submit_button("🗑️ 删除分类", use_container_width=True)
+        if submitted_del and del_cat:
+            delete_category(del_cat, del_cat_type_val)
+            st.toast(f"已删除分类：{del_cat}")
+            st.rerun()
 
 
 def render_transaction_list() -> None:
@@ -1055,23 +1150,38 @@ def render_analysis(month: str) -> None:
     daily_trend      = get_daily_trend(month)
 
     render_section_heading("核心图表", "分类支出占比与每日收支趋势")
-    left, right = st.columns([1, 1.35])
-    with left:
-        if category_summary.empty:
-            st.info("该月暂无支出记录。")
-        else:
+    has_category = not category_summary.empty
+    has_trend = daily_trend[["income", "expense"]].to_numpy().sum() > 0
+
+    if has_category and has_trend:
+        left, right = st.columns([1, 1.35])
+        with left:
             st.plotly_chart(
                 create_category_pie_chart(category_summary),
                 use_container_width=True,
             )
-    with right:
-        if daily_trend[["income", "expense"]].to_numpy().sum() == 0:
-            st.info("该月暂无交易记录。")
-        else:
+        with right:
             st.plotly_chart(
                 create_daily_trend_chart(daily_trend, month),
                 use_container_width=True,
             )
+    elif has_category:
+        st.plotly_chart(
+            create_category_pie_chart(category_summary),
+            use_container_width=True,
+        )
+    elif has_trend:
+        st.plotly_chart(
+            create_daily_trend_chart(daily_trend, month),
+            use_container_width=True,
+        )
+    else:
+        render_empty_state(
+            _SVG["pie_chart"],
+            "暂无图表数据",
+            "添加收支记录后，这里会显示分类占比和每日趋势图。",
+            variant="compact",
+        )
 
     # 分类支出明细表
     if not category_summary.empty:
@@ -1114,12 +1224,60 @@ def render_budget(month: str) -> None:
     with col_warn:
         render_section_heading(f"{month} 预算提醒")
         warnings = check_budget_warnings(month)
+        budgets_df = list_budgets(month)
         if warnings:
             for msg in warnings:
                 svg_icon = _SVG["alert_red"] if "已超过" in msg else _SVG["alert_yellow"]
                 st.warning(f"{svg_icon} {msg}", icon=None)
+        elif budgets_df.empty:
+            render_empty_state(
+                _SVG["check"],
+                "尚未设置预算",
+                "在左侧表单设置预算后，系统会根据支出情况给出提醒。",
+            )
         else:
-            st.success("✅ 当前没有预算提醒。")
+            render_empty_state(
+                _SVG["check"],
+                "支出状况良好",
+                "所有预算均在正常范围内，继续保持。",
+                variant="success compact",
+            )
+
+    # 已有预算列表
+    render_section_heading("已有预算", "当前月份已设置的预算")
+    if budgets_df.empty:
+        render_empty_state(
+            _SVG["check"],
+            "暂无预算",
+            "还没有为本月设置任何预算，请在上方表单中添加。",
+            variant="compact",
+        )
+    else:
+        display = budgets_df.copy()
+        display["分类"] = display["category"].fillna("月度总预算")
+        display = display.rename(columns={"amount": "预算金额 (¥)"})
+        st.dataframe(
+            display[["id", "分类", "预算金额 (¥)"]],
+            hide_index=True,
+            use_container_width=True,
+        )
+        col_id, col_btn = st.columns([2, 1])
+        with col_id:
+            del_id = st.number_input(
+                "输入要删除的预算编号（id）",
+                min_value=0,
+                step=1,
+                value=0,
+                key="budget_delete_id",
+            )
+        with col_btn:
+            st.markdown("<br>", unsafe_allow_html=True)
+            if st.button("🗑️ 删除预算", use_container_width=True):
+                if del_id > 0 and delete_budget(int(del_id)):
+                    st.toast("预算已删除")
+                    st.rerun()
+                else:
+                    st.warning("请输入有效的预算编号")
 
 
 def render_csv() -> None:
