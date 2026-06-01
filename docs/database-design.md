@@ -211,12 +211,16 @@ SELECT amount FROM budgets WHERE month = '2026-05' AND category = '餐饮';
 |---|---|---|
 | `save_budget(b: Budget)` | `int`（预算 id） | 新增或更新预算（upsert） |
 | `check_budget_warnings(month)` | `list[str]` | 返回中文提醒列表，空列表表示无超支 |
+| `list_budgets(month)` | `pd.DataFrame` | 返回指定月份所有预算记录 |
+| `delete_budget(budget_id)` | `bool` | 按 id 删除预算，成功返回 True |
 
 ### 分类
 
-| 函数 | 返回值 | 说明 |
-|---|---|---|
-| `list_categories(type)` | `list[str]` | 返回分类名称列表，`type` 可选 |
+| 函数 | 位置 | 返回值 | 说明 |
+|---|---|---|---|
+| `list_categories(type)` | `app/database.py` | `list[str]` | 返回分类名称列表，`type` 可选 |
+| `add_category(name, type, keywords)` | `app/database.py` | `bool` | 添加新分类，已存在返回 False |
+| `delete_category(name, type)` | `app/database.py` | `bool` | 删除分类，成功返回 True |
 
 ---
 

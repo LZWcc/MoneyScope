@@ -23,7 +23,7 @@ python -m pytest tests/ -v
 
 ```
 platform darwin -- Python 3.12.11, pytest-9.0.3, pluggy-1.6.0
-collected 21 items
+collected 22 items
 
 tests/test_services.py::test_transaction_accepts_valid_values PASSED
 tests/test_services.py::test_transaction_rejects_invalid_amount PASSED
@@ -50,7 +50,9 @@ tests/test_services.py::test_daily_trend_chart_uses_date_axis_fixed_to_month PAS
 21 passed in 0.66s
 ```
 
-**结论：21 个测试用例全部通过，无失败，无警告。**
+> 注：重构后新增 1 条导入路径验证测试，当前共 22 个测试用例全部通过。
+
+**结论：22 个测试用例全部通过，无失败，无警告。**
 
 测试覆盖范围：
 
