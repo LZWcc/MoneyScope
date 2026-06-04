@@ -239,12 +239,32 @@ header {
 }
 
 .empty-state-card.compact {
-    min-height: 116px;
+    min-height: auto;
 }
 
 .empty-state-card.success {
     border-color: #bbf7d0;
     background: rgba(240, 253, 244, 0.76);
+}
+
+.empty-state-card.warn-over {
+    border-color: #fecaca;
+    background: rgba(254, 242, 242, 0.76);
+}
+
+.empty-state-card.warn-over .empty-state-icon {
+    background: #fee2e2;
+    color: #dc2626;
+}
+
+.empty-state-card.warn-near {
+    border-color: #fde68a;
+    background: rgba(255, 251, 235, 0.76);
+}
+
+.empty-state-card.warn-near .empty-state-icon {
+    background: #fef3c7;
+    color: #d97706;
 }
 
 .empty-state-icon {

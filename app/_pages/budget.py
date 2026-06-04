@@ -49,8 +49,21 @@ def render_budget(month: str) -> None:
         budgets_df = list_budgets(month)
         if warnings:
             for msg in warnings:
-                svg_icon = _SVG["alert_red"] if "已超过" in msg else _SVG["alert_yellow"]
-                st.warning(f"{svg_icon} {msg}", icon=None)
+                is_over = "已超过" in msg
+                svg_icon = _SVG["alert_red"] if is_over else _SVG["alert_yellow"]
+                card_cls = "empty-state-card compact warn-over" if is_over else "empty-state-card compact warn-near"
+                st.markdown(
+                    f"""
+                    <div class="{card_cls}">
+                        <div class="empty-state-icon">{svg_icon}</div>
+                        <div>
+                            <div class="empty-state-title">{msg}</div>
+                            <p class="empty-state-description">请关注消费情况，合理控制支出。</p>
+                        </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
         elif budgets_df.empty:
             render_empty_state(
                 _SVG["check"],
