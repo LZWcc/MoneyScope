@@ -35,6 +35,7 @@ tests/test_services.py::test_initialize_database_creates_tables PASSED
 tests/test_services.py::test_add_and_list_transactions PASSED
 tests/test_services.py::test_list_transactions_filters_by_month_type_and_category PASSED
 tests/test_services.py::test_delete_transaction_removes_existing_row PASSED
+tests/test_services.py::test_delete_transaction_renumbers_remaining_rows PASSED
 tests/test_services.py::test_monthly_summary_calculates_income_expense_and_balance PASSED
 tests/test_services.py::test_category_expense_summary_only_counts_expenses PASSED
 tests/test_services.py::test_daily_trend_covers_full_month PASSED
@@ -47,7 +48,7 @@ tests/test_services.py::test_create_category_pie_chart_returns_plotly_figure PAS
 tests/test_services.py::test_create_daily_trend_chart_returns_plotly_figure PASSED
 tests/test_services.py::test_daily_trend_chart_uses_date_axis_fixed_to_month PASSED
 
-21 passed in 0.66s
+22 passed in 0.66s
 ```
 
 > 注：重构后新增 1 条导入路径验证测试，当前共 22 个测试用例全部通过。
@@ -60,12 +61,12 @@ tests/test_services.py::test_daily_trend_chart_uses_date_axis_fixed_to_month PAS
 |------|--------|------|
 | 模型与校验（Task 1） | 6 | Transaction / Budget 字段校验、月份格式、分类预算校验 |
 | 数据库初始化（Task 2） | 1 | 三张表是否正确创建 |
-| 交易 CRUD 与筛选（Task 3） | 3 | 新增、按条件筛选、删除 |
+| 交易 CRUD 与筛选（Task 3） | 4 | 新增、按条件筛选、删除、删后重排编号 |
 | 统计与预算（Task 4） | 5 | 月度汇总、分类支出、每日趋势、预算超额提醒 |
 | CSV 导入导出（Task 5） | 3 | 有效导入、缺列报错、导出字段顺序 |
 | 图表（Task 6） | 3 | 饼图、趋势图、横轴范围固定整月 |
 
-所有数据库测试均使用 `tmp_path` 临时文件，不污染 `data/moneyscope.db`。
+所有数据库测试均使用 `tmp_path` 临时文件，不污染 `data/demo_full.db`。
 
 ---
 

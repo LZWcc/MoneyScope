@@ -2,7 +2,7 @@
 
 > 面向需要编写数据库相关代码的开发者。本文档以**真实字段**为准，
 > 所有表结构、字段类型、枚举值均直接来源于 `app/database.py`，
-> 可与 `data/moneyscope.db` 对照验证。
+> 可与 `data/demo_full.db` 对照验证。
 
 ---
 
@@ -11,7 +11,7 @@
 | 项目 | 值 |
 |---|---|
 | 引擎 | SQLite 3 |
-| 文件路径 | `data/moneyscope.db`（由 `app/config.py` 的 `DATABASE_PATH` 定义） |
+| 文件路径 | `data/demo_full.db`（由 `app/config.py` 的 `DATABASE_PATH` 定义） |
 | 连接入口 | `app/database.get_connection()` |
 | 初始化入口 | `app/database.initialize_database()`（首次连接时自动调用） |
 | 文件是否入库 | 否，`.gitignore` 已排除 |
@@ -272,7 +272,7 @@ b = Budget(month="2026-05", amount=500.0, category="餐饮")
 
 ## 六、注意事项
 
-1. **不要直接操作 `moneyscope.db` 根目录的副本**，项目运行时使用的是 `data/moneyscope.db`（由 `app/config.DATABASE_PATH` 决定）。
+1. **不要直接操作 `moneyscope.db` 根目录的副本**，项目运行时使用的是 `data/demo_full.db`（由 `app/config.DATABASE_PATH` 决定）。
 2. **`description` 字段可以为空字符串**，不要将 `None` 写入，服务层已统一处理。
 3. **`budgets.category IS NULL` 查询总预算时必须用 `IS NULL`**，不能用 `= NULL`（SQLite 语法要求）。
 4. 所有金额字段均为 `REAL`，Python 中对应 `float`，格式化展示时用 `f"{amount:,.2f}"` 保持两位小数。
