@@ -17,7 +17,7 @@ env/
 .streamlit/secrets.toml
 
 # Database and generated data
-*.db
+# *.db
 *.sqlite
 *.sqlite3
 data/moneyscope.db
